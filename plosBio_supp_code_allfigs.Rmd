@@ -1,0 +1,1937 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+```{r}
+rm(list = ls())
+#make figure 1
+```
+
+```{r}
+library(stats)
+library(tidyverse)
+library(eha)
+library(gridExtra)
+library(patchwork)
+library(viridis)
+```
+
+```{r}
+#Create failure pdfs for 3 different shape parameters
+times = c(0:500)
+fail2.0a = dweibull(times,shape=2,scale=100)
+fail1.0b = dweibull(times,shape=1,scale=50)
+fail3.0b = dweibull(times,shape=3,scale=50)
+fail2.0b = dweibull(times,shape=2,scale=50)
+fail2.0c = dweibull(times,shape=2,scale=12.5)
+
+
+examples = data.frame(Time=times,fail2.0a = fail2.0a, fail2.0b = fail2.0b, fail2.0c = fail2.0c, fail1.0b = fail1.0b,fail3.0b = fail3.0b)
+#create cumulative survival for 3 different shape parameters
+cum1.0b = 1-pweibull(times,shape=1,scale=50)
+cum3.0b = 1-pweibull(times,shape=3,scale=50)
+cum2.0a = 1-pweibull(times,shape=2,scale=100)
+cum2.0b = 1-pweibull(times,shape=2,scale=50)
+cum2.0c = 1-pweibull(times,shape=2,scale=12.5)
+examples = cbind(examples, data.frame(cum2.0a = cum2.0a, cum2.0b=cum2.0b, cum2.0c=cum2.0c,cum3.0b = cum3.0b,cum1.0b = cum1.0b))
+
+favg2.0a=which.max(cum2.0a<=0.5)
+favg2.0b=which.max(cum2.0b<=0.5)
+favg2.0c=which.max(cum2.0c<=0.5)
+favg3.0b=which.max(cum3.0b<=0.5)
+favg1.0b=which.max(cum1.0b<=0.5)
+#create hazard function plot for 3 different shape parameters
+haz2.0a = hweibull(times,shape=2,scale=100)
+haz1.0b = hweibull(times,shape=1,scale=50)
+haz2.0b = hweibull(times,shape=2,scale=50)
+haz3.0b = hweibull(times,shape=3,scale=50)
+haz2.0c = hweibull(times,shape=2,scale=12.5)
+examples = cbind(examples, data.frame(haz2.0a = haz2.0a, haz2.0b = haz2.0b,haz1.0b = haz1.0b, haz3.0b = haz3.0b,haz2.0c=haz2.0c))
+```
+
+
+
+```{r}
+common_scale_color <- scale_color_manual(name = "Scale", values = viridis(3),breaks=c("12.5","50","100"))
+common_scale_linetype <- scale_linetype_manual(name="Shape", values = c("1"="dotted","2"="solid","3"="dashed"))
+common_scale_shape <- scale_shape_manual(name="Shape", values = c("1"=15,"2"=16,"3"=17))
+
+#cumulative survival plot
+cum.plot = ggplot(data=examples)+
+  geom_line(aes(Time,cum2.0a,color="100",linetype="2"),size=1.25)+
+  geom_line(aes(Time,cum2.0b,color="50",linetype="2"),size=1.25)+
+  geom_line(aes(Time,cum2.0c,color="12.5",linetype="2"),size=1.25)+
+  geom_line(aes(Time,cum1.0b,color="50",linetype="1"),size=1.25)+
+  geom_line(aes(Time,cum3.0b,color="50",linetype="3"),size=1.25)+
+    geom_point(aes(x = Time, y = cum2.0a, shape = "1", color = "100"), alpha = 0) +  # Invisible points
+  geom_point(aes(x = Time, y = cum2.0b, shape = "2", color = "50"), alpha = 0) +  # Invisible points
+  geom_point(aes(x = Time, y = cum2.0c, shape = "3", color = "12.5"), alpha = 0)+
+  labs(x="Time", y="S(t)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(color = "black"),axis.ticks.x=element_blank(),axis.ticks.y=element_blank(), legend.position = "none")+
+  coord_cartesian(xlim = c(0, 110))+
+  common_scale_color+
+  common_scale_linetype+
+  common_scale_shape
+
+#hazard function plot
+haz.plot = ggplot(data=examples[c(1:110),])+
+  geom_line(aes(Time,haz2.0a,color="100",linetype="2"),size=1.25)+
+  geom_line(aes(Time,haz2.0b,color="50",linetype="2"),size=1.25)+
+  geom_line(aes(Time,haz2.0c,color="12.5",linetype="2"),size=1.25)+
+  geom_line(aes(Time,haz1.0b,color="50",linetype="1"),size=1.25)+
+  geom_line(aes(Time,haz3.0b,color="50",linetype="3"),size=1.25)+
+    geom_point(aes(x = Time, y = haz2.0a, shape = "1", color = "100"), alpha = 0) +  # Invisible points
+  geom_point(aes(x = Time, y = haz2.0b, shape = "2", color = "50"), alpha = 0) +  # Invisible points
+  geom_point(aes(x = Time, y = haz2.0c, shape = "3", color = "12.5"), alpha = 0)+
+  labs(x="Time", y="h(t)")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(color = "black"),axis.ticks.x=element_blank(),axis.ticks.y=element_blank(), legend.position = "none")+
+  coord_cartesian(xlim = c(0, 110))+
+  common_scale_color+
+  common_scale_linetype+
+  common_scale_shape
+#failtime density plot
+
+#custom legend shape sizes
+large_points <- function(data, params, size) {
+  # Multiply by some number
+  data$size <- data$size * 2
+  draw_key_point(data = data, params = params, size = size)
+}
+
+
+fail.plot = ggplot(data=examples)+
+  geom_line(aes(Time,fail2.0a,color="100",linetype="2"),size=1.25)+
+  geom_line(aes(Time,fail2.0b,color="50",linetype="2"),size=1.25)+
+  geom_line(aes(Time,fail2.0c,color="12.5",linetype="2"),size=1.25)+
+  geom_line(aes(Time,fail1.0b,color="50",linetype="1"),size=1.25)+
+  geom_line(aes(Time,fail3.0b,color="50",linetype="3"),size=1.25)+
+  geom_point(aes(x=favg2.0a,y=-0.005,color="100",shape="2"),size=2,key_glyph = large_points)+
+  geom_point(aes(x=favg2.0b,y=-0.005,color="50",shape="2"),size=2,key_glyph = large_points)+
+  geom_point(aes(x=favg2.0c,y=-0.005,color="12.5",shape="2"),size=2,key_glyph = large_points)+
+  geom_point(aes(x=favg1.0b,y=-0.005,color="50",shape="1"),size=2,key_glyph = large_points)+
+  geom_point(aes(x=favg3.0b,y=-0.005,color="50",shape="3"),size=2,key_glyph = large_points)+
+  labs(x="", y="f(t)")+
+  common_scale_color+
+  common_scale_linetype+
+  common_scale_shape+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(color = "black"),axis.ticks.x=element_blank(),axis.ticks.y=element_blank(),legend.key.width = unit(2,"cm"))+
+  coord_cartesian(xlim = c(0, 110))
+
+```
+
+
+```{r}
+combined_plot <- haz.plot / fail.plot / cum.plot + 
+  plot_layout(guides = 'collect') &
+  plot_annotation(tag_levels = "A")
+combined_plot
+```
+
+```{r}
+rm(list = ls())
+#make figure 2
+```
+
+```{r}
+library(flexsurv)
+library(tidyverse)
+library(gridExtra)
+library(patchwork)
+library(RColorBrewer)
+```
+
+
+```{r}
+#Jorgenson et al. data
+jorg = read.csv("Jorgensen_Static.csv")
+jorg$event= rep(1,nrow(jorg))
+colnames(jorg)[colnames(jorg)=="KDTime"] = "time"
+colnames(jorg)[colnames(jorg)=="Temp"] = "RearTemp"
+#see what species have enough data points to be usable
+table(jorg$Species)
+#see how many temperatures are covered by each species
+spc.temp.tab = table(jorg$RearTemp,jorg$Species)
+spc.temp.tab
+#most of the species have enough data to be somewhat useful. But, some species/temp combinations do not. So I will remove any trial without at least 10 replicates. For trials with less data, flexsurv models typically can't converge. But if I instead excluded only trials for which the model wouldn't converge, I would be biasing the dataset.
+trials.df = as.data.frame(spc.temp.tab>=10)
+```
+
+```{r}
+sci.names = c("D. buzzatii","D. equinoxialis","D. immigrans","D. melanogaster","D. mercatorum", "D. mojavensis", "D. montana", "D. rufa", "D. subobscura", "D. suzukii", "D. virilis")
+```
+
+```{r}
+shape.list = list()
+shape.var.list = list()
+scale.list = list()
+scale.var.list = list()
+var.log.tkd.list = list()
+tkd.list = list()
+
+for (i in 1:length(colnames(trials.df))){
+  species = colnames(trials.df)[i]
+#narrow down to this particular species
+species.data = jorg[jorg$Species==species,]
+temp.list = rownames(trials.df)[trials.df[,species]]
+#narrow down to only include trials with enough data
+species.data = species.data[species.data$RearTemp %in% temp.list,]
+#extract weibull model parameters
+k.species = c()
+k.species.var = c()
+#IMPORTANT: this is log(lambda), because flexsurvreg automatically puts scale on a log scale
+lambda.species = c()
+lambda.species.var = c()
+
+var.log.tkd.species = c()
+tkd.species = c()
+
+#make Weibull fits for every temperature for this species. Append its shape and scale parameters to the vectors above
+for (j in unique(species.data$RearTemp)){
+mod.j = flexsurvreg(Surv(time,event) ~ 1, data = species.data[(species.data$RearTemp==j),], dist=
+                               "weibull")
+k.species.var = c(k.species.var, mod.j$cov[[1,1]])
+lambda.species.var = c(lambda.species.var, mod.j$cov[[2,2]])
+k.species = c(k.species,mod.j$coefficients[[1]])
+lambda.species = c(lambda.species,mod.j$coefficients[[2]])
+
+var.log.tkd.species = c(var.log.tkd.species,var(log10(species.data[(species.data$RearTemp==j),]$time)))
+tkd.species = c(tkd.species, median(species.data[(species.data$RearTemp==j),]$time))
+
+}
+shape.list[[length(shape.list)+1]] = k.species
+scale.var.list[[length(scale.var.list)+1]] = k.species.var
+scale.list[[length(scale.list)+1]] = lambda.species
+shape.var.list[[length(shape.var.list)+1]] = lambda.species.var
+var.log.tkd.list[[length(var.log.tkd.list)+1]] = var.log.tkd.species
+tkd.list[[length(tkd.list)+1]] = tkd.species
+}
+```
+
+
+
+```{r}
+#make dataframe for species combined line plot
+wb.pars.df = data.frame(species=rep(NA,0),temp=rep(NA,0),shape=rep(NA,0),scale=rep(NA,0),var.log.tKD=rep(NA,0))
+
+for (i in 1:length(sci.names)){
+  species = colnames(trials.df)[i]
+  temp.list = as.numeric(rownames(trials.df)[trials.df[,species]])
+  shapes=shape.list[[i]]
+  scales=scale.list[[i]]
+  n.trials=length(shapes)
+  spec.df=data.frame(species=rep(species,n.trials),temp=temp.list,shape=shapes,scale=scales,var.log.tKD=var.log.tkd.list[[i]],median.tKD=tkd.list[[i]])
+  wb.pars.df=rbind(wb.pars.df,spec.df)
+  
+}
+```
+
+```{r}
+#get modeled value of sCTmax (as defined by Jorgensen et al 2021) for each species
+#these will be used to color code and order the species in the figure
+sCTmax.df = data.frame(species=rep(NA,length(sci.names)),sCTmax=rep(NA,length(sci.names)))
+for (i in 1:length(sci.names)){
+  species = unique(wb.pars.df$species)[i]
+  temp.list = as.numeric(rownames(trials.df)[trials.df[,i]])
+  tdt.mod = lm(log10(median.tKD)~temp,data=wb.pars.df[wb.pars.df$species==species,])
+  lm.slope = tdt.mod$coefficients[2]
+  lm.int = tdt.mod$coefficients[1]
+  sCT_max = (1-lm.int)/lm.slope
+  sCTmax.df[i,]=c(species,sCT_max)
+  
+}
+
+#enter scientific names
+sci.names.key=data.frame(sci.names=sci.names,abbrev=c("Buz","Equ","Imm","Mel","Mer","Moj","Mon","Ruf","Sub","Suz","Vir"))
+new.names.vec=rep(NA,nrow(wb.pars.df))
+for (i in 1:nrow(wb.pars.df)){
+new.names.vec[i]=sci.names.key$sci.names[sci.names.key$abbrev==wb.pars.df$species[i]]
+  
+}
+wb.pars.df$species=new.names.vec
+
+wb.pars.df$species = factor(wb.pars.df$species, levels=unique(wb.pars.df$species)[order(sCTmax.df$sCTmax, decreasing=TRUE)])
+```
+
+
+
+```{r}
+#create tdt plot
+tdt.plot = ggplot(data=wb.pars.df)+
+  geom_line(aes(y=log10(median.tKD),x=temp,color=species),linewidth=1)+
+  geom_hline(yintercept=1,linetype="dotted")+
+  xlab("")+
+  ylab(expression(log[10](t[f])))+
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(color = "black"),axis.title.x = element_blank(), axis.text.x = element_blank(),legend.position="bottom")+
+  scale_color_brewer(palette="RdYlBu")+
+  labs(color="Species")
+
+
+
+
+shape.plot = ggplot(data=wb.pars.df)+
+  geom_line(aes(y=shape,x=temp,color=species),linewidth=1)+
+  xlab("Temperature (\u00B0C)")+
+  ylab("Shape")+
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(),legend.position="bottom")+
+  scale_color_brewer(palette="RdYlBu")+
+  labs(color="Species")
+
+scale.plot = ggplot(data=wb.pars.df)+
+  geom_line(aes(y=scale,x=temp,color=species),linewidth=1)+
+  xlab("Temperature (\u00B0C)")+
+  ylab(expression(log[10]("Scale")))+
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(color = "black"),axis.title.x = element_blank(), axis.text.x = element_blank(),legend.position="bottom")+
+  scale_color_brewer(palette="RdYlBu")+
+  labs(color="Species")
+
+varlogtkd.plot = ggplot(data=wb.pars.df)+
+  geom_line(aes(y=var.log.tKD,x=temp,color=species),linewidth=1)+
+  xlab("Temperature (\u00B0C)")+
+  ylab(expression(var(log[10](t[f]))))+
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(color = "black"),legend.position="bottom")+
+  scale_color_brewer(palette="RdYlBu")+
+  labs(color="Species") 
+
+combined_plot <- wrap_plots(tdt.plot, scale.plot, varlogtkd.plot, shape.plot)+
+  plot_layout(guides = 'collect')&
+  theme(legend.position="bottom",
+        legend.key.size = unit(0.3, "cm"),
+    legend.key = element_rect(color = NA, fill = NA),
+    legend.text = element_text(face = "italic")) & 
+  plot_annotation(tag_levels = "A")
+  
+  
+  combined_plot
+```
+
+#supplemental plot recreating fig 2 but with each species separately
+Fig S3
+
+```{r}
+
+#iterate through each species
+combined.plots=list()
+
+for (i in 1: length(unique(wb.pars.df$species))){
+  species_i = unique(wb.pars.df$species)[i]
+  color_i = brewer.pal(n=11,name="RdYlBu")[which.max(levels(wb.pars.df$species)==species_i)]
+  print(color_i)
+  data_i = wb.pars.df[wb.pars.df$species==species_i,]
+  
+tdt.plot = ggplot(data=data_i)+
+  geom_point(aes(y=log10(median.tKD),x=temp),color=color_i)+
+  geom_hline(yintercept=1,linetype="dotted")+
+  geom_smooth(aes(y=log10(median.tKD),x=temp),color=color_i,linewidth=1,method="lm",se=F)+
+  xlab("")+
+  ylab(expression(log[10](t[f])))+
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(color = "black"),axis.title.x = element_blank(), axis.text.x = element_blank(),legend.position="bottom")
+
+
+shape.mod_i = lm(shape~temp,data=data_i) 
+shape.p.value_i = summary(shape.mod_i)$coefficients[2,4]
+
+shape.plot = ggplot(data=data_i)+
+  geom_point(aes(y=shape,x=temp),color=color_i)+
+  geom_smooth(aes(y=shape,x=temp),color=color_i,linewidth=1,method="lm",se=F)+
+  xlab("Temperature (\u00B0C)")+
+  ylab("Shape")+
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(),legend.position="bottom")+
+  annotate("text", 
+           x = Inf, y = Inf, 
+           label = paste0("p = ", signif(shape.p.value_i, 3)),
+           hjust = 1.1, vjust = 1.5,
+           size = 4) 
+
+scale.plot = ggplot(data=data_i)+
+  geom_point(aes(y=scale,x=temp),color=color_i)+
+  geom_smooth(aes(y=scale,x=temp),color=color_i,linewidth=1,method="lm",se=F)+
+  xlab("Temperature (\u00B0C)")+
+  ylab(expression(log[10]("Scale")))+
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(color = "black"),axis.title.x = element_blank(), axis.text.x = element_blank(),legend.position="bottom")
+
+varlogtkd.plot = ggplot(data=data_i)+
+  geom_line(aes(y=var.log.tKD,x=temp),color=color_i,linewidth=1)+
+  xlab("Temperature (\u00B0C)")+
+  ylab(expression(var(log[10](t[f]))))+
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(color = "black"),legend.position="bottom") 
+
+combined_plot <- wrap_plots(tdt.plot, scale.plot, varlogtkd.plot, shape.plot)+
+  plot_layout(guides = 'collect')&
+  theme(legend.position="none",
+        legend.key.size = unit(0.3, "cm"),
+    legend.key = element_rect(color = NA, fill = NA),
+    legend.text = element_text(face = "italic")) & 
+  plot_annotation(tag_levels = "A")&
+  ggtitle(species_i)
+  
+  
+  print(combined_plot)
+  
+  # Ensure the output folder exists
+if (!dir.exists("suppfig3")) dir.create("suppfig3")
+
+# Build file name safely
+filename <- paste0("suppfig3/", gsub(" ", "_", species_i), ".jpeg")
+
+# Save the plot
+ggsave(filename, plot = combined_plot, width = 10, height = 8, units = "in", dpi = 300)
+combined.plots[[i]] = combined_plot
+}
+```
+
+```{r}
+fig.s3.a = wrap_plots(combined.plots[[1]],combined.plots[[2]],combined.plots[[3]],combined.plots[[4]],combined.plots[[5]],combined.plots[[6]])
+fig.s3.a
+fig.s3.b = wrap_plots(combined.plots[[7]],combined.plots[[8]],combined.plots[[9]],combined.plots[[10]],combined.plots[[11]])
+fig.s3.b
+```
+
+
+
+#supplemental figure S1 residual plots
+```{r}
+#create a list to hold the residual plots for each species
+plot.list = list()
+#iterate through all species, create a residual plot for each, and append to the list
+for (i in 1:length(unique(wb.pars.df$species))){
+  species_i = unique(wb.pars.df$species)[i]
+  data_i = wb.pars.df[wb.pars.df$species==species_i,]
+  tdt.mod_i = lm(log10(median.tKD)~temp,data=data_i)
+  tdt.slope_i = tdt.mod_i$coefficients[[2]]
+  tdt.int_i = tdt.mod_i$coefficients[[1]]
+  resids_i = log10(data_i$median.tKD)-(tdt.slope_i*data_i$temp+tdt.int_i)
+  resid_df <- data.frame(
+  temp = data_i$temp,
+  resids = resids_i
+)
+
+plot_i <- ggplot(resid_df, aes(x = temp, y = resids)) +
+  geom_point() +
+  ggtitle(species_i) +
+  ylab(expression("Residual "*log[10]*" "*t[f])) +
+  xlab("Temperature (\u00B0C)")+
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(color = "black"))
+
+  plot.list[[i]]=plot_i
+}
+```
+
+```{r}
+combined_resid_plot <- wrap_plots(plot.list[[1]],plot.list[[2]],plot.list[[3]],plot.list[[4]],plot.list[[5]],plot.list[[6]],plot.list[[7]],plot.list[[8]],plot.list[[9]],plot.list[[10]],plot.list[[11]])
+
+
+
+combined_resid_plot
+```
+
+```{r}
+rm(list = ls())
+#make figure 3
+```
+
+```{r}
+library(stats)
+library(tidyverse)
+library(eha)
+library(gridExtra)
+library(flexsurv)
+library(survival)
+library(ggsurvfit)
+library(RColorBrewer)
+library(survminer)
+library(ggplotify)
+library(patchwork)
+library(viridis)
+```
+First, I'll run the functions to produce Rezende and Weibull models. Rezende code obtained from Rezende et al 2020, slightly modified to account for different sampling rates.
+
+
+```{r}
+#Steps to this model:
+#1) First fit weibull curves to each tdt curve (each temperature) for the data supplied
+#2) Then fit a linear model to both weibull shape and scale vs temp
+#3) Next, we deal with the fluctuating temp data:
+#     start cumulative survival (S(t)) at 1 (S(t_0)=1)
+#     for each timestep t_i:
+#         Find the weibull shape and scale parameters corresponding to the temperature T_i at timestep t_i. These parameters give a cumulative survival function of time (time spent under the constant temperature used to make the Weibull TDT curve, which we will call t*. Not the fluctuating temperature t_i). This distribution has CDF F_w(t*), PDF f_w(t*), cumulative survival S_w(t*)=1-F_w(t*)
+#         Find chance of surviving from time t_i-1 to t_i: 
+#             i) First, we find: S_w^-1(S(t_i-1))=t*_i
+#             ii) Calculate failure in that time interval f.rate_i=S(t_i)/S(t_i-1)
+#             iii) Calculate cumulative mortality between t_i-1 and t_i as (t_i-(t_i-1))*f.rate_i
+#             iiii)Let S_i=(S_i-1)-[(t_i-(t_i-1))*f_w(t*_i)]
+#Note that this loop assumes the temperature is constant at T_i for the time interval from t_i-1 to t_i. You could alternatively take the max or average of the temperatures at these time points. 
+#replace with shape="constant" if you want the model to assume constant shape
+weibull.mod = function(TDT.dat,temp.dat,shape="linear"){
+  #step 1
+shape.vec = c()
+shape.vec.var = c()
+scale.vec = c()
+scale.vec.var = c()
+for (j in unique(TDT.dat$Tref)){
+mod.j = flexsurvreg(Surv(time,event) ~ 1, data = TDT.dat[(TDT.dat$Tref==j),], dist=
+                               "weibull")
+shape.vec.var = c(shape.vec.var, mod.j$cov[[1,1]])
+scale.vec.var = c(scale.vec.var, exp(mod.j$cov[[2,2]]))
+shape.vec = c(shape.vec,mod.j$coefficients[[1]])
+#exponentiate because the function flexsurvreg automatically puts scale on a log scale
+scale.vec = c(scale.vec,exp(mod.j$coefficients[[2]]))
+}
+
+#step 2
+shape.lm=lm(shape.vec~unique(TDT.dat$Tref))
+shape.slope=lm(shape.vec~unique(TDT.dat$Tref))$coefficients[[2]]
+shape.int=lm(shape.vec~unique(TDT.dat$Tref))$coefficients[[1]]
+#constant shape lm
+cons.shape.lm=lm(shape.vec~1)
+cons.shape.int=cons.shape.lm$coefficients[[1]]
+#note the log transformation
+scale.lm=lm(log10(scale.vec)~unique(TDT.dat$Tref))
+scale.slope=scale.lm$coefficients[[2]]
+scale.int=scale.lm$coefficients[[1]]
+
+shape.pars=c(shape.slope,shape.int,cons.shape.int)
+logscale.pars=c(scale.slope,scale.int)
+
+#predict under fluctuating temperatures with shape as a linear function of temperature
+if (shape=="linear"){
+#step 3
+cum.surv = rep(NA,nrow(temp.dat))
+cum.surv[1]=1
+fail.rates = rep(0,nrow(temp.dat))
+mean.list=c()
+shape.list=c()
+log.list=c()
+
+for (i in 2:nrow(temp.dat)){
+  T_i=temp.dat$Temperature[i]
+  T_prev=temp.dat$Temperature[i-1]
+  t_i=temp.dat$Time_min[i]
+  t_prev=temp.dat$Time_min[i-1]
+  t_diff=t_i-t_prev
+  #untransform from log scale
+  scale_i = 10^(scale.slope*mean(T_i,T_prev)+scale.int)
+  shape_i = shape.slope*mean(T_i,T_prev)+shape.int
+  mean.list=c(mean.list,scale_i*gamma(1+1/shape_i))
+  log.list=c(log.list,cum.surv[i-1])
+  #inverse CDF
+  t_star_i=scale_i*(-log(cum.surv[i-1]))^(1/shape_i)
+  #weibull pdf/failure rate
+  #Get the proportion that made it th timestep i/prop that made it to i-1 to get the prop that died in the meantime
+  fail.rates[i]=(1-pweibull(t_star_i,shape_i,scale_i))-(1-pweibull(t_star_i+t_diff,shape_i,scale_i))
+  cum.surv[i]=cum.surv[i-1]-fail.rates[i]
+}
+med.tdt=temp.dat$Time_min[which.max(cum.surv<0.5)]
+cum.surv.post=na.omit(cum.surv)
+times.post=temp.dat$Time_min[1:length(cum.surv.post)]
+expected.tdt=mean(-sum((cum.surv.post[2:length(cum.surv.post)]-cum.surv.post[1:(length(cum.surv.post)-1)])*times.post[2:length(cum.surv.post)]), -sum((cum.surv.post[2:length(cum.surv.post)]-cum.surv.post[1:(length(cum.surv.post)-1)])*times.post[1:(length(cum.surv.post)-1)]))
+}
+
+if (shape=="constant"){
+ #step 3
+cum.surv = rep(NA,nrow(temp.dat))
+cum.surv[1]=1
+fail.rates = rep(0,nrow(temp.dat))
+mean.list=c()
+shape.list=c()
+log.list=c()
+
+for (i in 2:nrow(temp.dat)){
+  T_i=temp.dat$Temperature[i]
+  T_prev=temp.dat$Temperature[i-1]
+  t_i=temp.dat$Time_min[i]
+  t_prev=temp.dat$Time_min[i-1]
+  t_diff=t_i-t_prev
+  #untransform from log scale
+  scale_i = 10^(scale.slope*mean(T_i,T_prev)+scale.int)
+  #this is the only line that is different
+  shape_i = cons.shape.int
+  mean.list=c(mean.list,scale_i*gamma(1+1/shape_i))
+  log.list=c(log.list,cum.surv[i-1])
+  #inverse CDF
+  t_star_i=scale_i*(-log(cum.surv[i-1]))^(1/shape_i)
+  #weibull pdf/failure rate
+  #Get the proportion that made it th timestep i/prop that made it to i-1 to get the prop that died in the meantime
+  fail.rates[i]=(1-pweibull(t_star_i,shape_i,scale_i))-(1-pweibull(t_star_i+t_diff,shape_i,scale_i))
+  cum.surv[i]=cum.surv[i-1]-fail.rates[i]
+}
+med.tdt=temp.dat$Time_min[which.max(cum.surv<0.5)]
+cum.surv.post=na.omit(cum.surv)
+times.post=temp.dat$Time_min[1:length(cum.surv.post)]
+expected.tdt=mean(-sum((cum.surv.post[2:length(cum.surv.post)]-cum.surv.post[1:(length(cum.surv.post)-1)])*times.post[2:length(cum.surv.post)]), -sum((cum.surv.post[2:length(cum.surv.post)]-cum.surv.post[1:(length(cum.surv.post)-1)])*times.post[1:(length(cum.surv.post)-1)])) 
+  
+  
+  
+}
+
+output=list(med.tdt,expected.tdt,cum.surv.post,shape.pars,logscale.pars)
+names(output)=c("med.tdt","expected.tdt","cum.surv","shape.pars","logscale.pars")
+return(output)
+}
+```
+
+#3 Rezende et al model
+
+```{r}
+#First function produces static "tolerance landscape" from a vector of temperatures and a vector of thermal death times
+
+
+	tolerance.landscape <- function(ta,time){
+	
+			data <- data.frame(ta,time)
+			data <- data[order(data$ta,data$time),]
+
+			# Step 1: Calculate CTmax and z from TDT curve
+			ta <- as.numeric(levels(as.factor(data$ta)))			
+			model <- lm(log10(data$time) ~ data$ta); summary(model)
+			ctmax <- -coef(model)[1]/coef(model)[2]
+			z <- -1/coef(model)[2]
+
+			# Step 2: Calculate average log10 time and Ta (mean x and y for interpolation purposes)
+			time.mn <- mean(log10(data$time))
+			ta.mn <- mean(data$ta)
+	
+			# Step 3: Interpolating survival probabilities to make them comparable across treatments 
+			time.interpol <- matrix(,1001,length(ta))
+			for(i in 1:length(ta)){	
+			time <- c(0,sort(data$time[data$ta==ta[i]])); p <- seq(0,100,length.out = length(time))
+			time.interpol[,i] <- approx(p,time,n = 1001)$y}			
+
+			# Step 4: Overlap all survival curves into a single one by shifting each curve to mean x and y employing z
+			# Step 5: Build expected survival curve with median survival time for each survival probability
+			shift <- (10^((ta - ta.mn)/z))
+			time.interpol.shift <- t(t(time.interpol)*shift)[-1,]
+			surv.pred <- 10^apply(log10(time.interpol.shift),1,median) 	
+	
+			# Step 6: Expand predicted survival curves to measured Ta (matrix m arranged from lower to higher ta)
+			# Step 7: Obtain predicted values comparable to each empirical measurement
+			m <- surv.pred*matrix ((10^((ta.mn - rep(ta, each = 1000))/z)), nrow = 1000)
+			out <-0
+			for(i in 1:length(ta)){
+				time <- c(0,data$time[data$ta==ta[i]]); p <- seq(0,100,length.out = length(time))
+				out <- c(out,approx(seq(0,100,length.out = 1000),m[,i],xout=p[-1])$y)}
+				data$time.pred <- out[-1]
+				colnames(m) <- paste("time.at",ta,sep=".")
+				m <- cbind(surv.prob=seq(1,0.001,-0.001),m)
+
+			par(mfrow=c(1,2),mar=c(4.5,4,1,1),cex.axis=1.1)
+			plot(-10,-10,las=1,xlab="Time (min)",ylab="Survival (%)",col="white",xaxs="i",yaxs="i",xlim=c(0,max(data$time)*1.05),ylim=c(0,105))
+				for(i in 1:length(ta)){
+				time <- c(0,sort(data$time[data$ta==ta[i]])); p <- seq(100,0,length.out = length(time))
+				points(time,p,pch=21,bg="black",cex=0.5)
+				time <- c(0,sort(data$time.pred[data$ta==ta[i]]))
+				points(m[,i+1],100*m[,1],type="l",lty=2)}
+				segments(max(data$time)*0.7,90,max(data$time)*0.8,90,lty=2)
+				text(max(data$time)*0.82,90,"fitted",adj=c(0,0.5))
+			plot(log10(data$time.pred),log10(data$time),pch=21,bg="black",cex=0.5,lwd=0.7,las=1,xlab="Fitted Log10 time",ylab="Measured Log10 time")
+			abline(0,1,lty=2)
+			rsq <- round(summary(lm(log10(data$time) ~ log10(data$time.pred)))$r.square,3)
+			text(min(log10(data$time.pred)),max(log10(data$time)),substitute("r"^2*" = "*rsq),adj=c(0,1))
+			list(ctmax = as.numeric(ctmax), z = as.numeric(z), ta.mn = ta.mn,  S = data.frame(surv=seq(0.999,0,-0.001),time=surv.pred),
+			time.obs.pred=cbind(data$time,data$time.pred), rsq = rsq)}	
+```
+
+```{r}
+#ta is vector of fluctuating temperature conditions
+#times is a vector of the corresponding times
+	dynamic.landscape <- function(ta,times,tolerance.landscape){
+	  #These are the predicted survival times that correspond to set cumulative survival values for the average temperature
+			surv <- tolerance.landscape$S[,2]
+			#mean temperature from TDT curves
+			ta.mn <- tolerance.landscape$ta.mn
+			#thermal tolerance coefficient
+			z <- tolerance.landscape$z
+			#the change in cumulative survival for a given temperature
+			shift <- 10^((ta.mn - ta)/z)	
+			time.rel <- 0
+			#this will become a vector of cumulative survival percentages
+			alive <- 100
+			for(i in 1:(length(ta)-1)){	
+			  #this is the size of the timestep in question
+			  tstep=times[i+1]-times[i]
+				if(alive[length(na.omit(alive))] > 0) {		
+				  #approx fits a linear regression of relative time 
+					alive <- try(c(alive,approx(c(0,shift[i]*surv),seq(100,0,length.out = length(c(0,surv))),xout = time.rel[i] + tstep)$y),silent=TRUE)
+					#This essentially uses the inverse CDF of the shifted survival curve to approximate the comparable static temperature time using the next temperature
+					time.rel <- try(c(time.rel,approx(seq(100,0,length.out = length(c(0,surv))),c(0,shift[i + 1]*surv),xout = alive[i + 1])$y),silent=TRUE)}
+				else{
+					alive <- 0}}				
+			out <- data.frame(cbind(ta=ta[1:(length(alive)-1)],time=times[1:(length(alive)-1)],alive=alive[1:(length(alive)-1)]))
+			par(mar=c(4,4,1,1),mfrow=c(1,2))
+			plot(1:length(ta),ta,type="l",xlim=c(0,length(ta)),ylim=c(min(ta),max(ta)),col="black",lwd=1.5,las=1,
+				xlab = "Time (min)", ylab = "Temperature (ºC)")			
+			plot(out$time,out$alive,type="l",xlim=c(0,length(ta)),ylim=c(0,100),col="black",lwd=1.5,las=1,
+				xlab = "Time (min)", ylab = "Survival (%)")
+			list(time = out$time,ta = out$ta, alive = out$alive)}
+```
+
+
+
+```{r}
+#Jorgenson et al. data
+jorg = read.csv("Jorgensen_Static.csv")
+jorg$event= rep(1,nrow(jorg))
+colnames(jorg)[colnames(jorg)=="KDTime"] = "time"
+colnames(jorg)[colnames(jorg)=="Temp"] = "RearTemp"
+#see what species have enough data points to be usable
+table(jorg$Species)
+#see how many temperatures are covered by each species
+spc.temp.tab = table(jorg$RearTemp,jorg$Species)
+spc.temp.tab
+#most of the species have enough data to be somewhat useful. But, some species/temp combinations do not. So I will remove any trial without at least 10 replicates. For trials with less data, models typically can't converge. But if I instead excluded only trials for which the model wouldn't converge, I would be biasing the dataset.
+trials.df = as.data.frame(spc.temp.tab>=10)
+```
+
+```{r}
+sci.names = c("D. buzzatii","D. equinoxialis","D. immigrans","D. melanogaster","D. mercatorum", "D. mojavensis", "D. montana", "D. rufa", "D. subobscura", "D. suzukii", "D. virilis")
+```
+
+
+```{r}
+surv.fits.list=list()
+rz.fits.list=list()
+#weibull with changing shape
+wb.fits.list=list()
+#for every species
+for (i in 1:length(colnames(trials.df))){
+  species = colnames(trials.df)[i]
+#narrow down to this particular species
+species.data = jorg[jorg$Species==species,]
+temp.list = rownames(trials.df)[trials.df[,species]]
+#narrow down to only include trials with enough data
+species.data = species.data[species.data$RearTemp %in% temp.list,]
+#km survival fit to the data
+surv.fit = survfit(Surv(time, event) ~ as.numeric(RearTemp), data = species.data)
+fit.summary = summary(surv.fit)
+times = fit.summary$time
+survs=fit.summary$surv
+strats=fit.summary$strata
+temps=sapply(strats, function(x) sub("^as\\.numeric\\(RearTemp\\)=", "", x))
+#make cumulative survival curves out of raw data
+surv.fits.list[[i]]=data.frame(times=times,cum.surv=survs,temp=as.numeric(temps))
+names(surv.fits.list)[i]=species
+
+#Rezende fits
+tol.land.spec = tolerance.landscape(species.data$RearTemp,species.data$time)
+
+ntemp=length(unique(species.data$RearTemp))
+             
+rz.cum.surv=rep(tol.land.spec$S[,1],ntemp)
+rz.surv.times=rep(tol.land.spec$S[,2],ntemp)
+rz.temp=c()
+rz.times=c()
+#run models from Rezende et al 2020
+for (j in 1:ntemp){
+  n.per.temp=length(tol.land.spec$S[,1])
+  rz.temp[c((1+(j-1)*n.per.temp):(j*n.per.temp))] = rep(unique(species.data$RearTemp)[j],n.per.temp)
+}
+
+ta.mn = tol.land.spec$ta.mn
+z = tol.land.spec$z
+
+
+rz.times = rz.surv.times*10^((ta.mn - rz.temp)/z)
+
+rz.fits.list[[i]] = data.frame(times=rz.times,cum.surv=rz.cum.surv,temp=as.numeric(rz.temp))
+names(rz.fits.list)[i]=species
+
+
+#failure density by temp
+#failure rates by temp
+rz.fits.list[[i]]$fail.rates = rep(0,nrow(rz.fits.list[[i]]))
+for (j in 1:ntemp){
+  temp_j=unique(rz.fits.list[[i]]$temp)[j]
+  cum.surv_j = rz.fits.list[[i]]$cum.surv[rz.fits.list[[i]]$temp==temp_j]
+  times_j = rz.fits.list[[i]]$times[rz.fits.list[[i]]$temp==temp_j]
+density_j = c(-(cum.surv_j[2:length(cum.surv_j)]-cum.surv_j[1:(length(cum.surv_j)-1)]))
+delta_t_j= c(times_j[2:length(times_j)]-times_j[1:(length(times_j)-1)])
+rz.fits.list[[i]]$fail.rates[rz.fits.list[[i]]$temp==temp_j]=c(NA,density_j/delta_t_j)
+}
+
+#Weibull fits
+species.data$Tref=species.data$RearTemp
+#temp dat doesn't matter: it is fluctuating temp conditions, but we only care about the parameters used to make them. I've included filler here.
+wb.spec = weibull.mod(temp.dat=data.frame(Time_min=rep(1,10),Temperature=rep(35,10)),TDT.dat=species.data)
+#cut off times as end of last rezende or survival fit, just for graphical clarity
+t.max = max(c(rz.times,times))
+wb.cum.surv=rep(tol.land.spec$S[,1],ntemp)
+wb.surv.times=rep(tol.land.spec$S[,2],ntemp)
+wb.temp=c()
+wb.times=c()
+
+for (j in 1:ntemp){
+  time.seq = seq(0,t.max,0.1)
+  n.times=length(time.seq)
+  wb.times[(1+(j-1)*n.times):(j*n.times)] = time.seq
+  
+  wb.temp[(1+(j-1)*n.times):(j*n.times)] = rep(unique(species.data$RearTemp)[j],n.times)
+}
+
+#fit weibull distribution parameters as a linear function of temperature
+shapes.vec = wb.spec$shape.pars[1]*wb.temp+wb.spec$shape.pars[2]
+scales.vec = 10^(wb.spec$logscale.pars[1]*wb.temp+wb.spec$logscale.pars[2])
+
+for (j in 1:nrow(species.data)){
+  #failtime for individual j
+  x_j = species.data$time[j]
+  #temp of individual j
+  temp_j = species.data$Tref[j]
+  lin.shape_j = wb.spec$shape.pars[1]*temp_j+wb.spec$shape.pars[2]
+  scale_j = 10^(wb.spec$logscale.pars[1]*temp_j+wb.spec$logscale.pars[2])
+}
+
+#cumulative survival
+wb.cum.surv = 1-pweibull(wb.times,shape=shapes.vec,scale=scales.vec)
+
+wb.fits.list[[i]] = data.frame(times=wb.times,cum.surv=wb.cum.surv,temp=as.numeric(wb.temp),shapes=shapes.vec,scales=scales.vec)
+names(wb.fits.list)[i]=species
+
+
+#failure rates by temp
+wb.fits.list[[i]]$density = rep(0,nrow(wb.fits.list[[i]]))
+for (j in 1:ntemp){
+  temp_j=unique(wb.fits.list[[i]]$temp)[j]
+  cum.surv_j = wb.fits.list[[i]]$cum.surv[wb.fits.list[[i]]$temp==temp_j]
+  times_j = wb.fits.list[[i]]$times[wb.fits.list[[i]]$temp==temp_j]
+density_j = c(-(cum.surv_j[2:length(cum.surv_j)]-cum.surv_j[1:(length(cum.surv_j)-1)]))
+delta_t_j= c(times_j[2:length(times_j)]-times_j[1:(length(times_j)-1)])
+wb.fits.list[[i]]$fail.rates[wb.fits.list[[i]]$temp==temp_j]=c(NA,density_j/delta_t_j)
+}
+
+
+}
+```
+
+
+Note that the functions to produce Rezende model fits are in the files "Thermal_landscape_functions.R" 
+
+
+
+#density plots
+Need to calculate density. But this is difficult given that some of our curves are discrete and some are continuous. To make matters simpler and put all on an even playing field, I'll estimate densities by simulation. I'll generate 10000 unif(0,1) random variables, and treat these as cumulative survival values. Then, I'll map them to associated failure time values, giving me simulated random variables with the density of the model in question.
+```{r}
+#this function takes a dataframe with one column "times", a second column "cum.surv", and a third column "temp". These should be ordered in increasing time/decreasing cumulative survival. n is the number of random data points generated.
+generate.density = function(cdf,n){
+  
+  temps.list = unique(cdf$temp)
+  fail.ests = data.frame(
+    tf = rep(NA,0),
+    temp = rep(NA,0),
+    rv = rep(NA,0))
+    rvs = runif(n)
+  
+for (i in 1:length(temps.list)){
+  temp_i = temps.list[i]
+  cdf_i = cdf[cdf$temp==temp_i,]
+#vector of n unif(0,1) random variables
+#vector that will contain all of the simulated failure times
+fail.ests.i = rep(NA,n)
+for (j in 1:n){
+  #the first time at which cumulative survival is less than or equal to our simulated random variable.
+  #rounding our time up like this is practical, because if data is collected every dt minutes, and failure occurs just after time t, it won't be detected until time t+dt.
+  fail.ests.i[j] = cdf_i$times[cdf_i$cum.surv<=rvs[j]][1]
+}
+#set an arbitrarily large value to the simulated points that are outside of our graph window. This way they will still be accounted for in the density metric, but won't show up on the graph.
+fail.ests.i[is.na(fail.ests.i)==TRUE]=100000
+fail.ests=rbind(fail.ests,data.frame(tf=fail.ests.i,temp=rep(temp_i,n),rv=rvs))
+}
+return(fail.ests)
+}
+```
+
+```{r}
+temp.list=seq(33,41,0.5)
+common_color_scale=scale_color_manual(name = "Temperature", values = plasma(length(temp.list)),breaks=as.character(temp.list),limits=as.character(temp.list))
+
+common.linetype.scale=scale_linetype_manual(values=c("Rezende"="dotted","Weibull"="dashed","Data"="solid"))
+
+data.a=surv.fits.list$Mel[surv.fits.list$Mel$temp%in%c("36","41"),]
+rz.a = rz.fits.list$Mel[rz.fits.list$Mel$temp%in%c("36","41"),]
+wb.a = wb.fits.list$Mel[wb.fits.list$Mel$temp%in%c("36","41"),]
+
+data.dens.a=generate.density(
+  cdf = data.a[,c("times","cum.surv","temp")],n=10000)
+rz.dens.a = generate.density(
+  cdf = rz.a[,c("times","cum.surv","temp")],n=10000)
+wb.dens.a = generate.density(
+  cdf = wb.a[,c("times","cum.surv","temp")],n=10000)
+
+densplot.a = ggplot(data=NULL)+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp,linetype="Rezende"),data=rz.dens.a,size=1)+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp,linetype="Weibull"),data=wb.dens.a,size=1)+
+  geom_rug(aes(x=log10(tf),group=as.factor(temp),color=temp),data=data.dens.a,sides="b")+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp, linetype="Data"),data=data.dens.a)+
+  ggtitle(expression("B) " * italic("D. melanogaster")))+
+  xlim(0,3)+
+  common.linetype.scale+
+  theme(axis.title = element_blank(),plot.title = element_text(face = "italic"))
+
+data.b=surv.fits.list$Sub[surv.fits.list$Sub$temp%in%c("33","40"),]
+rz.b = rz.fits.list$Sub[rz.fits.list$Sub$temp%in%c("33","40"),]
+wb.b = wb.fits.list$Sub[wb.fits.list$Sub$temp%in%c("33","40"),]
+data.dens.b=generate.density(
+  cdf = data.b[,c("times","cum.surv","temp")],n=10000)
+rz.dens.b = generate.density(
+  cdf = rz.b[,c("times","cum.surv","temp")],n=10000)
+wb.dens.b = generate.density(
+  cdf = wb.b[,c("times","cum.surv","temp")],n=10000)
+
+densplot.b = ggplot(data=NULL)+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp,linetype="Rezende"),data=rz.dens.b,size=1)+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp,linetype="Weibull"),data=wb.dens.b,size=1)+
+  geom_rug(aes(x=log10(tf),group=as.factor(temp),color=temp),data=data.dens.b,sides="b")+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp, linetype="Data"),data=data.dens.b)+
+  ggtitle(expression("A) " * italic("D. subobscura")))+
+  xlim(0,3)+
+  common.linetype.scale+
+  theme(axis.title = element_blank(),plot.title = element_text(face = "italic"))
+
+data.c=surv.fits.list$Moj[surv.fits.list$Moj$temp%in%c("39.5","43.5"),]
+rz.c = rz.fits.list$Moj[rz.fits.list$Moj$temp%in%c("39.5","43.5"),]
+wb.c = wb.fits.list$Moj[wb.fits.list$Moj$temp%in%c("39.5","43.5"),]
+data.dens.c=generate.density(
+  cdf = data.c[,c("times","cum.surv","temp")],n=10000)
+rz.dens.c = generate.density(
+  cdf = rz.c[,c("times","cum.surv","temp")],n=10000)
+wb.dens.c = generate.density(
+  cdf = wb.c[,c("times","cum.surv","temp")],n=10000)
+
+densplot.c = ggplot(data=NULL)+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp,linetype="Rezende"),data=rz.dens.c,size=1)+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp,linetype="Weibull"),data=wb.dens.c,size=1)+
+  geom_rug(aes(x=log10(tf),group=as.factor(temp),color=temp),data=data.dens.c,sides="b")+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp, linetype="Data"),data=data.dens.c)+
+  ggtitle(expression("D) " * italic("D. mojavensis")))+
+  xlim(0,3)+
+  common.linetype.scale+
+  theme(axis.title = element_blank(),plot.title = element_text(face = "italic"))
+
+data.d=surv.fits.list$Vir[surv.fits.list$Vir$temp%in%c("37.5","41.5"),]
+rz.d = rz.fits.list$Vir[rz.fits.list$Vir$temp%in%c("37.5","41.5"),]
+wb.d = wb.fits.list$Vir[wb.fits.list$Vir$temp%in%c("37.5","41.5"),]
+
+data.dens.d=generate.density(
+  cdf = data.d[,c("times","cum.surv","temp")],n=10000)
+rz.dens.d = generate.density(
+  cdf = rz.d[,c("times","cum.surv","temp")],n=10000)
+wb.dens.d = generate.density(
+  cdf = wb.d[,c("times","cum.surv","temp")],n=10000)
+
+densplot.d = ggplot(data=NULL)+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp,linetype="Rezende"),data=rz.dens.d,size=1)+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp,linetype="Weibull"),data=wb.dens.d,size=1)+
+  geom_rug(aes(x=log10(tf),group=as.factor(temp),color=temp),data=data.dens.d,sides="b")+
+  geom_density(aes(x=log10(tf),group=as.factor(temp),color=temp, linetype="Data"),data=data.dens.d)+
+  ggtitle(expression("C) " * italic("D. virilis")))+
+  xlim(0,3)+
+  common.linetype.scale+
+  theme(axis.title = element_blank())
+
+combined.dens.plots = wrap_plots(densplot.b,densplot.a,densplot.d,densplot.c)+
+  plot_layout(guides = 'collect') & 
+  scale_colour_gradientn(colours = plasma(length(temp.list)),
+                         limits = range(data.a$temp, data.b$temp, data.c$temp, data.d$temp))&
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line())&
+  ylab("Failure Density")&
+  xlab(expression(log[10]*"(Minutes)"))&
+  labs(color=expression(""*~degree*C*""),linetype="Fit")
+
+```
+
+
+```{r}
+main_grid <- wrap_plots(densplot.b, densplot.a, densplot.d, densplot.c, ncol = 2) +
+  plot_layout(guides = "collect") &
+  scale_colour_gradientn(
+    colours = plasma(length(temp.list)),
+    limits = range(data.a$temp, data.b$temp, data.c$temp, data.d$temp)
+  ) &
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line()
+  ) &
+  labs(color = expression("" * ~degree * C * ""), linetype = "Fit")
+
+# Create axis label plots
+x_lab_plot <- ggplot() + 
+  theme_void() +
+  annotate("text", x = 0.5, y = 0.5, label = expression(log[10]*"(Minutes)"), size = 5, angle = 0)
+
+y_lab_plot <- ggplot() + 
+  theme_void() +
+  annotate("text", x = 0.5, y = 0.5, label = "Failure Density", size = 5, angle = 90)
+
+# Assemble everything in a layout
+final_plot <- (
+  y_lab_plot + main_grid + plot_spacer() +
+  plot_spacer() + x_lab_plot + plot_spacer()
+) +
+  plot_layout(
+    ncol = 3,
+    nrow = 2,
+    widths = c(0.05, 0.9, 0.05),
+    heights = c(0.9, 0.1)
+  )
+
+print(final_plot)
+```
+
+
+```{r}
+#Make Fig. 4
+rm(list = ls())
+```
+
+```{r}
+library(tidyverse)
+library(patchwork)
+library(viridis)
+library(flexsurv)
+```
+
+```{r}
+#load functions for making Weibull and Rezende models
+```
+
+```{r}
+#Steps to this model:
+#1) First fit weibull curves to each tdt curve (each temperature) for the data supplied
+#2) Then fit a linear model to both weibull shape and scale vs temp
+#3) Next, we deal with the fluctuating temp data:
+#     start cumulative survival (S(t)) at 1 (S(t_0)=1)
+#     for each timestep t_i:
+#         Find the weibull shape and scale parameters corresponding to the temperature T_i at timestep t_i. These parameters give a cumulative survival function of time (time spent under the constant temperature used to make the Weibull TDT curve, which we will call t*. Not the fluctuating temperature t_i). This distribution has CDF F_w(t*), PDF f_w(t*), cumulative survival S_w(t*)=1-F_w(t*)
+#         Find chance of surviving from time t_i-1 to t_i: 
+#             i) First, we find: S_w^-1(S(t_i-1))=t*_i
+#             ii) Calculate failure in that time interval f.rate_i=S(t_i)/S(t_i-1)
+#             iii) Calculate cumulative mortality between t_i-1 and t_i as (t_i-(t_i-1))*f.rate_i
+#             iiii)Let S_i=(S_i-1)-[(t_i-(t_i-1))*f_w(t*_i)]
+#Note that this loop assumes the temperature is constant at T_i for the time interval from t_i-1 to t_i. You could alternatively take the max or average of the temperatures at these time points. 
+#replace with shape="constant" if you want the model to assume constant shape
+weibull.mod = function(TDT.dat,temp.dat,shape="linear"){
+  #step 1
+shape.vec = c()
+shape.vec.var = c()
+scale.vec = c()
+scale.vec.var = c()
+for (j in unique(TDT.dat$Tref)){
+mod.j = flexsurvreg(Surv(time,event) ~ 1, data = TDT.dat[(TDT.dat$Tref==j),], dist=
+                               "weibull")
+shape.vec.var = c(shape.vec.var, mod.j$cov[[1,1]])
+scale.vec.var = c(scale.vec.var, exp(mod.j$cov[[2,2]]))
+shape.vec = c(shape.vec,mod.j$coefficients[[1]])
+#exponentiate because the function flexsurvreg automatically puts scale on a log scale
+scale.vec = c(scale.vec,exp(mod.j$coefficients[[2]]))
+}
+
+#step 2
+shape.lm=lm(shape.vec~unique(TDT.dat$Tref))
+shape.slope=lm(shape.vec~unique(TDT.dat$Tref))$coefficients[[2]]
+shape.int=lm(shape.vec~unique(TDT.dat$Tref))$coefficients[[1]]
+#constant shape lm
+cons.shape.lm=lm(shape.vec~1)
+cons.shape.int=cons.shape.lm$coefficients[[1]]
+#note the log transformation
+scale.lm=lm(log10(scale.vec)~unique(TDT.dat$Tref))
+scale.slope=scale.lm$coefficients[[2]]
+scale.int=scale.lm$coefficients[[1]]
+
+shape.pars=c(shape.slope,shape.int,cons.shape.int)
+logscale.pars=c(scale.slope,scale.int)
+
+#predict under fluctuating temperatures with shape as a linear function of temperature
+if (shape=="linear"){
+#step 3
+cum.surv = rep(NA,nrow(temp.dat))
+cum.surv[1]=1
+fail.rates = rep(0,nrow(temp.dat))
+mean.list=c()
+shape.list=c()
+log.list=c()
+
+for (i in 2:nrow(temp.dat)){
+  T_i=temp.dat$Temperature[i]
+  T_prev=temp.dat$Temperature[i-1]
+  t_i=temp.dat$Time_min[i]
+  t_prev=temp.dat$Time_min[i-1]
+  t_diff=t_i-t_prev
+  #untransform from log scale
+  scale_i = 10^(scale.slope*mean(T_i,T_prev)+scale.int)
+  shape_i = shape.slope*mean(T_i,T_prev)+shape.int
+  mean.list=c(mean.list,scale_i*gamma(1+1/shape_i))
+  log.list=c(log.list,cum.surv[i-1])
+  #inverse CDF
+  t_star_i=scale_i*(-log(cum.surv[i-1]))^(1/shape_i)
+  #weibull pdf/failure rate
+  #Get the proportion that made it th timestep i/prop that made it to i-1 to get the prop that died in the meantime
+  fail.rates[i]=(1-pweibull(t_star_i,shape_i,scale_i))-(1-pweibull(t_star_i+t_diff,shape_i,scale_i))
+  cum.surv[i]=cum.surv[i-1]-fail.rates[i]
+}
+med.tdt=temp.dat$Time_min[which.max(cum.surv<0.5)]
+cum.surv.post=na.omit(cum.surv)
+times.post=temp.dat$Time_min[1:length(cum.surv.post)]
+expected.tdt=mean(-sum((cum.surv.post[2:length(cum.surv.post)]-cum.surv.post[1:(length(cum.surv.post)-1)])*times.post[2:length(cum.surv.post)]), -sum((cum.surv.post[2:length(cum.surv.post)]-cum.surv.post[1:(length(cum.surv.post)-1)])*times.post[1:(length(cum.surv.post)-1)]))
+}
+
+if (shape=="constant"){
+ #step 3
+cum.surv = rep(NA,nrow(temp.dat))
+cum.surv[1]=1
+fail.rates = rep(0,nrow(temp.dat))
+mean.list=c()
+shape.list=c()
+log.list=c()
+
+for (i in 2:nrow(temp.dat)){
+  T_i=temp.dat$Temperature[i]
+  T_prev=temp.dat$Temperature[i-1]
+  t_i=temp.dat$Time_min[i]
+  t_prev=temp.dat$Time_min[i-1]
+  t_diff=t_i-t_prev
+  #untransform from log scale
+  scale_i = 10^(scale.slope*mean(T_i,T_prev)+scale.int)
+  #this is the only line that is different
+  shape_i = cons.shape.int
+  mean.list=c(mean.list,scale_i*gamma(1+1/shape_i))
+  log.list=c(log.list,cum.surv[i-1])
+  #inverse CDF
+  t_star_i=scale_i*(-log(cum.surv[i-1]))^(1/shape_i)
+  #weibull pdf/failure rate
+  #Get the proportion that made it th timestep i/prop that made it to i-1 to get the prop that died in the meantime
+  fail.rates[i]=(1-pweibull(t_star_i,shape_i,scale_i))-(1-pweibull(t_star_i+t_diff,shape_i,scale_i))
+  cum.surv[i]=cum.surv[i-1]-fail.rates[i]
+}
+med.tdt=temp.dat$Time_min[which.max(cum.surv<0.5)]
+cum.surv.post=na.omit(cum.surv)
+times.post=temp.dat$Time_min[1:length(cum.surv.post)]
+expected.tdt=mean(-sum((cum.surv.post[2:length(cum.surv.post)]-cum.surv.post[1:(length(cum.surv.post)-1)])*times.post[2:length(cum.surv.post)]), -sum((cum.surv.post[2:length(cum.surv.post)]-cum.surv.post[1:(length(cum.surv.post)-1)])*times.post[1:(length(cum.surv.post)-1)])) 
+  
+  
+  
+}
+
+output=list(med.tdt,expected.tdt,cum.surv.post,shape.pars,logscale.pars)
+names(output)=c("med.tdt","expected.tdt","cum.surv","shape.pars","logscale.pars")
+return(output)
+}
+```
+
+#3 Rezende et al model
+
+```{r}
+#First function produces static "tolerance landscape" from a vector of temperatures and a vector of thermal death times
+
+
+	tolerance.landscape <- function(ta,time){
+	
+			data <- data.frame(ta,time)
+			data <- data[order(data$ta,data$time),]
+
+			# Step 1: Calculate CTmax and z from TDT curve
+			ta <- as.numeric(levels(as.factor(data$ta)))			
+			model <- lm(log10(data$time) ~ data$ta); summary(model)
+			ctmax <- -coef(model)[1]/coef(model)[2]
+			z <- -1/coef(model)[2]
+
+			# Step 2: Calculate average log10 time and Ta (mean x and y for interpolation purposes)
+			time.mn <- mean(log10(data$time))
+			ta.mn <- mean(data$ta)
+	
+			# Step 3: Interpolating survival probabilities to make them comparable across treatments 
+			time.interpol <- matrix(,1001,length(ta))
+			for(i in 1:length(ta)){	
+			time <- c(0,sort(data$time[data$ta==ta[i]])); p <- seq(0,100,length.out = length(time))
+			time.interpol[,i] <- approx(p,time,n = 1001)$y}			
+
+			# Step 4: Overlap all survival curves into a single one by shifting each curve to mean x and y employing z
+			# Step 5: Build expected survival curve with median survival time for each survival probability
+			shift <- (10^((ta - ta.mn)/z))
+			time.interpol.shift <- t(t(time.interpol)*shift)[-1,]
+			surv.pred <- 10^apply(log10(time.interpol.shift),1,median) 	
+	
+			# Step 6: Expand predicted survival curves to measured Ta (matrix m arranged from lower to higher ta)
+			# Step 7: Obtain predicted values comparable to each empirical measurement
+			m <- surv.pred*matrix ((10^((ta.mn - rep(ta, each = 1000))/z)), nrow = 1000)
+			out <-0
+			for(i in 1:length(ta)){
+				time <- c(0,data$time[data$ta==ta[i]]); p <- seq(0,100,length.out = length(time))
+				out <- c(out,approx(seq(0,100,length.out = 1000),m[,i],xout=p[-1])$y)}
+				data$time.pred <- out[-1]
+				colnames(m) <- paste("time.at",ta,sep=".")
+				m <- cbind(surv.prob=seq(1,0.001,-0.001),m)
+
+			par(mfrow=c(1,2),mar=c(4.5,4,1,1),cex.axis=1.1)
+			plot(-10,-10,las=1,xlab="Time (min)",ylab="Survival (%)",col="white",xaxs="i",yaxs="i",xlim=c(0,max(data$time)*1.05),ylim=c(0,105))
+				for(i in 1:length(ta)){
+				time <- c(0,sort(data$time[data$ta==ta[i]])); p <- seq(100,0,length.out = length(time))
+				points(time,p,pch=21,bg="black",cex=0.5)
+				time <- c(0,sort(data$time.pred[data$ta==ta[i]]))
+				points(m[,i+1],100*m[,1],type="l",lty=2)}
+				segments(max(data$time)*0.7,90,max(data$time)*0.8,90,lty=2)
+				text(max(data$time)*0.82,90,"fitted",adj=c(0,0.5))
+			plot(log10(data$time.pred),log10(data$time),pch=21,bg="black",cex=0.5,lwd=0.7,las=1,xlab="Fitted Log10 time",ylab="Measured Log10 time")
+			abline(0,1,lty=2)
+			rsq <- round(summary(lm(log10(data$time) ~ log10(data$time.pred)))$r.square,3)
+			text(min(log10(data$time.pred)),max(log10(data$time)),substitute("r"^2*" = "*rsq),adj=c(0,1))
+			list(ctmax = as.numeric(ctmax), z = as.numeric(z), ta.mn = ta.mn,  S = data.frame(surv=seq(0.999,0,-0.001),time=surv.pred),
+			time.obs.pred=cbind(data$time,data$time.pred), rsq = rsq)}	
+```
+
+```{r}
+#ta is vector of fluctuating temperature conditions
+#times is a vector of the corresponding times
+	dynamic.landscape <- function(ta,times,tolerance.landscape){
+	  #These are the predicted survival times that correspond to set cumulative survival values for the average temperature
+			surv <- tolerance.landscape$S[,2]
+			#mean temperature from TDT curves
+			ta.mn <- tolerance.landscape$ta.mn
+			#thermal tolerance coefficient
+			z <- tolerance.landscape$z
+			#the change in cumulative survival for a given temperature
+			shift <- 10^((ta.mn - ta)/z)	
+			time.rel <- 0
+			#this will become a vector of cumulative survival percentages
+			alive <- 100
+			for(i in 1:(length(ta)-1)){	
+			  #this is the size of the timestep in question
+			  tstep=times[i+1]-times[i]
+				if(alive[length(na.omit(alive))] > 0) {		
+				  #approx fits a linear regression of relative time 
+					alive <- try(c(alive,approx(c(0,shift[i]*surv),seq(100,0,length.out = length(c(0,surv))),xout = time.rel[i] + tstep)$y),silent=TRUE)
+					#This essentially uses the inverse CDF of the shifted survival curve to approximate the comparable static temperature time using the next temperature
+					time.rel <- try(c(time.rel,approx(seq(100,0,length.out = length(c(0,surv))),c(0,shift[i + 1]*surv),xout = alive[i + 1])$y),silent=TRUE)}
+				else{
+					alive <- 0}}				
+			out <- data.frame(cbind(ta=ta[1:(length(alive)-1)],time=times[1:(length(alive)-1)],alive=alive[1:(length(alive)-1)]))
+			par(mar=c(4,4,1,1),mfrow=c(1,2))
+			plot(1:length(ta),ta,type="l",xlim=c(0,length(ta)),ylim=c(min(ta),max(ta)),col="black",lwd=1.5,las=1,
+				xlab = "Time (min)", ylab = "Temperature (ºC)")			
+			plot(out$time,out$alive,type="l",xlim=c(0,length(ta)),ylim=c(0,100),col="black",lwd=1.5,las=1,
+				xlab = "Time (min)", ylab = "Survival (%)")
+			list(time = out$time,ta = out$ta, alive = out$alive)}
+```
+
+```{r}
+#for every time interval (t_i-1,t_i):
+#1) Find max temperature over that time interval max(T_i,T_i-1)
+#2) Find size of time interval (t_i-(t_i-1))
+#3) Find damage accumulation rate: dd/dt=1/tKD(T)=1/(10^(Beta*T+alpha))
+#4) Multiply rate by time interval to calculate accumulated damage for that time interval
+#5) Add to total damage, record total damage at time t_i
+#we start i-1 at the start time for the given trial group, and assume d=0 prior to this point. So, for trial group 1, i=2, but for trial group 3, which starts at about 117 mins, we start indexing at i=70 (calculations above)
+
+
+
+
+jorg.mod = function(TDT.dat,temp.dat,KD.dat){
+  #extract tdt coefficients
+  tdt.lm = lm(log10.tcoma.~as.numeric(Tref),data=TDT.dat)
+  tdt.slope=tdt.lm$coefficients[2]
+  tdt.int=tdt.lm$coefficients[1]
+  
+  
+  #injury ACC rate vector
+acc.rates=rep(0,nrow(temp.dat))
+#trial group 1
+#initialize cumulative damage vector
+cd.vec = rep(0,nrow(temp.dat))
+#initialize timestep damage vector
+td.vec = rep(0,nrow(temp.dat))
+#initialize times vector
+t.vec = temp.dat$Time_min
+for (i in 2:nrow(temp.dat)){
+  t_i = temp.dat$Time_min[i]
+  t_prev = temp.dat$Time_min[i-1]
+  T_i = temp.dat$Temperature[i]
+  T_prev = temp.dat$Temperature[i-1]
+  #1
+  max.temp=max(T_i,T_prev)
+  #2
+  size.int=t_i-t_prev
+  #3
+  est.tKD = 10^(tdt.slope*max.temp+tdt.int)
+  dd_dt = 1/est.tKD
+  acc.rates[i]=dd_dt
+  #4
+  d.int = dd_dt*size.int
+  td.vec[i-1]=d.int
+  #5
+  cd.vec[i]=cd.vec[i-1]+d.int
+}
+# 
+# #now generate estimated damage at knockdown
+# #initialize vector
+dKD = rep(NA,nrow(KD.dat))
+
+for (i in 1:nrow(KD.dat)){
+   start.time = KD.dat$start[i]
+   tKD = KD.dat$t_coma[i]
+   dKD[i]=100*sum(td.vec[t.vec>=start.time & t.vec<=tKD])
+}
+
+est.tKD = rep(NA,nrow(KD.dat))
+for (i in 1:nrow(KD.dat)){
+  start.index.group = which.max(t.vec>=KD.dat$start[i])
+  cd.group = cd.vec-cd.vec[start.index.group]
+  est.tKD.index = which.max(cd.group>=1)
+  est.tKD[i]=t.vec[est.tKD.index]
+}
+  
+damage.df = data.frame(minutes=t.vec,cum.damage=cd.vec,interval.damage=td.vec)  
+KD.dat$est.dKD = dKD  
+KD.dat$est.tKD = est.tKD
+#estimated and actual kdtimes starting at start time
+KD.dat$est.tKD.adj = est.tKD-KD.dat$start
+KD.dat$tcoma.adj=KD.dat$t_coma-KD.dat$start
+ret.list=list(damage.df, KD.dat)
+names(ret.list)=c("damage.df","KD.dat")
+
+
+return(ret.list)
+}
+```
+
+```{r}
+#constant temperature knockdown data
+#used to train models
+niko.tdt = read.csv("Niko_temps_csvs/Nikolaj_TDT_raw.csv")
+#remove rows without Tref
+niko.tdt=niko.tdt[is.na(niko.tdt$Tref)==F,]
+#add columns for flexsurv formatting
+niko.tdt$time=niko.tdt$tcoma
+niko.tdt$event=rep(1,nrow(niko.tdt))
+head(niko.tdt)
+females.tdt = niko.tdt[niko.tdt$sex=="f",]
+males.tdt = niko.tdt[niko.tdt$sex=="m",]
+#remove 2 points with no tcoma (not censored, just missing)
+males.tdt=males.tdt[is.na(males.tdt$tcoma)==FALSE,]
+```
+
+```{r}
+#import trial temp condition data
+niko.temps = list(
+  read.csv("Niko_temps_csvs/Niko_temps_exp1.csv"),
+  read.csv("Niko_temps_csvs/Niko_temps_exp2.csv"),
+  read.csv("Niko_temps_csvs/Niko_temps_exp3.csv"))
+names(niko.temps)=c("exp1","exp2","exp3")
+```
+
+```{r}
+#knockdown data associated with these trial conditions
+#used to test models
+niko.fluc.tKD = read.csv("Niko_temps_csvs/Nikolaj_fluc_tKD_formatted.csv")
+head(niko.fluc.tKD)
+```
+
+```{r}
+#fluctuating knockdown data
+#females exp 1
+exp1.f.tKD.dat=niko.fluc.tKD[(niko.fluc.tKD$sex=="f" & niko.fluc.tKD$expno==1),]
+exp2.f.tKD.dat=niko.fluc.tKD[(niko.fluc.tKD$sex=="f" & niko.fluc.tKD$expno==2),]
+exp3.f.tKD.dat=niko.fluc.tKD[(niko.fluc.tKD$sex=="f" & niko.fluc.tKD$expno==3),]
+```
+
+Jorgensen analysis
+```{r}
+#females
+jorg.exp1.f = jorg.mod(TDT.dat=females.tdt,temp.dat=niko.temps[[1]],KD.dat=exp1.f.tKD.dat)
+jorg.exp2.f = jorg.mod(TDT.dat=females.tdt,temp.dat=niko.temps[[2]],KD.dat=exp2.f.tKD.dat)
+jorg.exp3.f = jorg.mod(TDT.dat=females.tdt,temp.dat=niko.temps[[3]],KD.dat=exp3.f.tKD.dat)
+jorg.f.comb=rbind(jorg.exp1.f$KD.dat,jorg.exp2.f$KD.dat,jorg.exp3.f$KD.dat)
+```
+
+```{r}
+#fluctuating knockdown data
+#males exp 1
+exp1.m.tKD.dat=niko.fluc.tKD[(niko.fluc.tKD$sex=="m" & niko.fluc.tKD$expno==1),]
+exp2.m.tKD.dat=niko.fluc.tKD[(niko.fluc.tKD$sex=="m" & niko.fluc.tKD$expno==2),]
+exp3.m.tKD.dat=niko.fluc.tKD[(niko.fluc.tKD$sex=="m" & niko.fluc.tKD$expno==3),]
+```
+
+```{r}
+#males
+jorg.exp1.m = jorg.mod(TDT.dat=males.tdt,temp.dat=niko.temps[[1]],KD.dat=exp1.m.tKD.dat)
+jorg.exp2.m = jorg.mod(TDT.dat=males.tdt,temp.dat=niko.temps[[2]],KD.dat=exp2.m.tKD.dat)
+jorg.exp3.m = jorg.mod(TDT.dat=males.tdt,temp.dat=niko.temps[[3]],KD.dat=exp3.m.tKD.dat)
+jorg.m.comb=rbind(jorg.exp1.m$KD.dat,jorg.exp2.m$KD.dat,jorg.exp3.m$KD.dat)
+plot(est.dKD~tcoma.adj,data=jorg.m.comb)
+```
+
+The Weibull and Rezende model functions just make predictions based on temp conditions: they don't adjust for group start times. So, we need to define the temperature conditions for each group.
+```{r}
+strt.times = exp1.f.tKD.dat %>% group_by(grp) %>% summarise(mean=mean(start))
+
+#fluctuating temperature dataframe starting at each groups start time
+temps.e1.g1 = niko.temps[[1]][which.max(niko.temps[[1]]$Time_min>=strt.times[1,2]):nrow(niko.temps[[1]]),]
+#subtract start time to rescale
+temps.e1.g1$Time_min=temps.e1.g1$Time_min - temps.e1.g1$Time_min[which.max(niko.temps[[1]]$Time_min>=strt.times[1,2])]
+
+temps.e1.g2 = niko.temps[[1]][which.max(niko.temps[[1]]$Time_min>=strt.times[[2,2]]):nrow(niko.temps[[1]]),]
+
+temps.e1.g2$Time_min=temps.e1.g2$Time_min - temps.e1.g2$Time_min[which.max(niko.temps[[1]]$Time_min>=strt.times[2,2])]
+
+temps.e1.g3 = niko.temps[[1]][which.max(niko.temps[[1]]$Time_min>=strt.times[[3,2]]):nrow(niko.temps[[1]]),]
+
+temps.e1.g3$Time_min=temps.e1.g3$Time_min - temps.e1.g3$Time_min[which.max(niko.temps[[1]]$Time_min>=strt.times[3,2])]
+
+temps.e1.g4 = niko.temps[[1]][which.max(niko.temps[[1]]$Time_min>=strt.times[[4,2]]):nrow(niko.temps[[1]]),]
+
+temps.e1.g4$Time_min=temps.e1.g4$Time_min - temps.e1.g4$Time_min[which.max(niko.temps[[1]]$Time_min>=strt.times[4,2])]
+```
+
+#exp 2
+```{r}
+strt.times = exp2.f.tKD.dat %>% group_by(grp) %>% summarise(mean=mean(start))
+
+#fluctuating temperature dataframe starting at each groups start time
+temps.e2.g1 = niko.temps[[2]][which.max(niko.temps[[2]]$Time_min>=strt.times[1,2]):nrow(niko.temps[[2]]),]
+#subtract start time to rescale
+temps.e2.g1$Time_min=temps.e2.g1$Time_min - temps.e2.g1$Time_min[which.max(niko.temps[[2]]$Time_min>=strt.times[1,2])]
+
+temps.e2.g2 = niko.temps[[2]][which.max(niko.temps[[2]]$Time_min>=strt.times[[2,2]]):nrow(niko.temps[[2]]),]
+
+temps.e2.g2$Time_min=temps.e2.g2$Time_min - temps.e2.g2$Time_min[which.max(niko.temps[[2]]$Time_min>=strt.times[2,2])]
+
+temps.e2.g3 = niko.temps[[2]][which.max(niko.temps[[2]]$Time_min>=strt.times[[3,2]]):nrow(niko.temps[[2]]),]
+
+temps.e2.g3$Time_min=temps.e2.g3$Time_min - temps.e2.g3$Time_min[which.max(niko.temps[[2]]$Time_min>=strt.times[3,2])]
+
+temps.e2.g4 = niko.temps[[2]][which.max(niko.temps[[2]]$Time_min>=strt.times[[4,2]]):nrow(niko.temps[[2]]),]
+
+temps.e2.g4$Time_min=temps.e2.g4$Time_min - temps.e2.g4$Time_min[which.max(niko.temps[[2]]$Time_min>=strt.times[4,2])]
+
+temps.e2.g5 = niko.temps[[2]][which.max(niko.temps[[2]]$Time_min>=strt.times[[5,2]]):nrow(niko.temps[[2]]),]
+
+temps.e2.g5$Time_min=temps.e2.g5$Time_min - temps.e2.g5$Time_min[which.max(niko.temps[[2]]$Time_min>=strt.times[5,2])]
+```
+
+```{r}
+#exp 3
+strt.times = exp3.f.tKD.dat %>% group_by(grp) %>% summarise(mean=mean(start))
+
+#fluctuating temperature dataframe starting at each groups start time
+temps.e3.g1 = niko.temps[[3]][which.max(niko.temps[[3]]$Time_min>=strt.times[1,2]):nrow(niko.temps[[3]]),]
+#subtract start time to rescale
+temps.e3.g1$Time_min=temps.e3.g1$Time_min - temps.e3.g1$Time_min[which.max(niko.temps[[3]]$Time_min>=strt.times[1,2])]
+
+temps.e3.g2 = niko.temps[[3]][which.max(niko.temps[[3]]$Time_min>=strt.times[[2,2]]):nrow(niko.temps[[3]]),]
+
+temps.e3.g2$Time_min=temps.e3.g2$Time_min - temps.e3.g2$Time_min[which.max(niko.temps[[3]]$Time_min>=strt.times[2,2])]
+
+temps.e3.g3 = niko.temps[[3]][which.max(niko.temps[[3]]$Time_min>=strt.times[[3,2]]):nrow(niko.temps[[3]]),]
+
+temps.e3.g3$Time_min=temps.e3.g3$Time_min - temps.e3.g3$Time_min[which.max(niko.temps[[3]]$Time_min>=strt.times[3,2])]
+
+temps.e3.g4 = niko.temps[[3]][which.max(niko.temps[[3]]$Time_min>=strt.times[[4,2]]):nrow(niko.temps[[3]]),]
+
+temps.e3.g4$Time_min=temps.e3.g4$Time_min - temps.e3.g4$Time_min[which.max(niko.temps[[3]]$Time_min>=strt.times[4,2])]
+
+```
+
+Weibull Analysis (linear shape)
+```{r}
+#exp 1
+#females
+wb.e1.g1.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e1.g1)
+wb.e1.g2.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e1.g2)
+wb.e1.g3.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e1.g3)
+wb.e1.g4.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e1.g4)
+c(wb.e1.g1.f$med.tdt,wb.e1.g2.f$med.tdt,wb.e1.g3.f$med.tdt,wb.e1.g4.f$med.tdt)
+c(wb.e1.g1.f$expected.tdt,wb.e1.g2.f$expected.tdt,wb.e1.g3.f$expected.tdt,wb.e1.g4.f$expected.tdt)
+#males
+wb.e1.g1.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e1.g1)
+wb.e1.g2.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e1.g2)
+wb.e1.g3.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e1.g3)
+wb.e1.g4.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e1.g4)
+```
+
+```{r}
+#exp 2
+wb.e2.g1.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e2.g1)
+wb.e2.g2.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e2.g2)
+wb.e2.g3.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e2.g3)
+wb.e2.g4.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e2.g4)
+wb.e2.g5.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e2.g5)
+c(wb.e2.g1.f$med.tdt,wb.e2.g2.f$med.tdt,wb.e2.g3.f$med.tdt,wb.e2.g4.f$med.tdt,wb.e2.g5.f$med.tdt)
+c(wb.e2.g1.f$expected.tdt,wb.e2.g2.f$expected.tdt,wb.e2.g3.f$expected.tdt,wb.e2.g4.f$expected.tdt,wb.e2.g5.f$med.tdt)
+#males
+wb.e2.g1.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e2.g1)
+wb.e2.g2.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e2.g2)
+wb.e2.g3.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e2.g3)
+wb.e2.g4.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e2.g4)
+wb.e2.g5.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e2.g5)
+```
+
+```{r}
+#exp 3
+wb.e3.g1.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e3.g1)
+wb.e3.g2.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e3.g2)
+wb.e3.g3.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e3.g3)
+wb.e3.g4.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e3.g4)
+c(wb.e3.g1.f$med.tdt,wb.e3.g2.f$med.tdt,wb.e3.g3.f$med.tdt,wb.e3.g4.f$med.tdt)
+c(wb.e3.g1.f$expected.tdt,wb.e3.g2.f$expected.tdt,wb.e3.g3.f$expected.tdt,wb.e3.g4.f$expected.tdt)
+#males
+wb.e3.g1.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e3.g1)
+wb.e3.g2.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e3.g2)
+wb.e3.g3.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e3.g3)
+wb.e3.g4.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e3.g4)
+```
+
+Weibull Analysis (constant shape)
+
+```{r}
+#exp 1
+#females
+wb.cons.e1.g1.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e1.g1,shape="constant")
+wb.cons.e1.g2.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e1.g2,shape="constant")
+wb.cons.e1.g3.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e1.g3,shape="constant")
+wb.cons.e1.g4.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e1.g4,shape="constant")
+c(wb.cons.e1.g1.f$med.tdt,wb.cons.e1.g2.f$med.tdt,wb.cons.e1.g3.f$med.tdt,wb.cons.e1.g4.f$med.tdt)
+c(wb.cons.e1.g1.f$expected.tdt,wb.cons.e1.g2.f$expected.tdt,wb.cons.e1.g3.f$expected.tdt,wb.cons.e1.g4.f$expected.tdt)
+#males
+wb.cons.e1.g1.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e1.g1,shape="constant")
+wb.cons.e1.g2.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e1.g2,shape="constant")
+wb.cons.e1.g3.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e1.g3,shape="constant")
+wb.cons.e1.g4.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e1.g4,shape="constant")
+```
+
+```{r}
+#exp 2
+wb.cons.e2.g1.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e2.g1,shape="constant")
+wb.cons.e2.g2.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e2.g2,shape="constant")
+wb.cons.e2.g3.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e2.g3,shape="constant")
+wb.cons.e2.g4.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e2.g4,shape="constant")
+wb.cons.e2.g5.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e2.g5,shape="constant")
+#males
+wb.cons.e2.g1.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e2.g1,shape="constant")
+wb.cons.e2.g2.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e2.g2,shape="constant")
+wb.cons.e2.g3.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e2.g3,shape="constant")
+wb.cons.e2.g4.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e2.g4,shape="constant")
+wb.cons.e2.g5.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e2.g5,shape="constant")
+```
+
+```{r}
+#exp 3
+wb.cons.e3.g1.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e3.g1,shape="constant")
+wb.cons.e3.g2.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e3.g2,shape="constant")
+wb.cons.e3.g3.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e3.g3,shape="constant")
+wb.cons.e3.g4.f = weibull.mod(TDT.dat=females.tdt,temp.dat=temps.e3.g4,shape="constant")
+#males
+wb.cons.e3.g1.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e3.g1,shape="constant")
+wb.cons.e3.g2.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e3.g2,shape="constant")
+wb.cons.e3.g3.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e3.g3,shape="constant")
+wb.cons.e3.g4.m = weibull.mod(TDT.dat=males.tdt,temp.dat=temps.e3.g4,shape="constant")
+```
+
+
+Rezende model output
+Note: these functions are slightly modified to account for temperatures not collected once per minute
+```{r}
+#females
+tol.land.females=tolerance.landscape(females.tdt$Tref,females.tdt$tcoma)
+#exp 1
+dy.land.e1.g1.f = dynamic.landscape(temps.e1.g1$Temperature,temps.e1.g1$Time_min,tol.land.females)
+dy.land.e1.g2.f = dynamic.landscape(temps.e1.g2$Temperature,temps.e1.g2$Time_min,tol.land.females)
+dy.land.e1.g3.f = dynamic.landscape(temps.e1.g3$Temperature,temps.e1.g3$Time_min,tol.land.females)
+dy.land.e1.g4.f = dynamic.landscape(temps.e1.g4$Temperature,temps.e1.g4$Time_min,tol.land.females)
+#median fail time
+rz.med.e1.g1.f = dy.land.e1.g1.f$time[which.max(dy.land.e1.g1.f$alive<50)]
+rz.med.e1.g2.f = dy.land.e1.g2.f$time[which.max(dy.land.e1.g2.f$alive<50)]
+rz.med.e1.g3.f = dy.land.e1.g3.f$time[which.max(dy.land.e1.g3.f$alive<50)]
+rz.med.e1.g4.f = dy.land.e1.g4.f$time[which.max(dy.land.e1.g4.f$alive<50)]
+
+#exp 2
+dy.land.e2.g1.f = dynamic.landscape(temps.e2.g1$Temperature,temps.e2.g1$Time_min,tol.land.females)
+dy.land.e2.g2.f = dynamic.landscape(temps.e2.g2$Temperature,temps.e2.g2$Time_min,tol.land.females)
+dy.land.e2.g3.f = dynamic.landscape(temps.e2.g3$Temperature,temps.e2.g3$Time_min,tol.land.females)
+dy.land.e2.g4.f = dynamic.landscape(temps.e2.g4$Temperature,temps.e2.g4$Time_min,tol.land.females)
+dy.land.e2.g5.f = dynamic.landscape(temps.e2.g5$Temperature,temps.e2.g5$Time_min,tol.land.females)
+#median fail time
+rz.med.e2.g1.f = dy.land.e2.g1.f$time[which.max(dy.land.e2.g1.f$alive<50)]
+rz.med.e2.g2.f = dy.land.e2.g2.f$time[which.max(dy.land.e2.g2.f$alive<50)]
+rz.med.e2.g3.f = dy.land.e2.g3.f$time[which.max(dy.land.e2.g3.f$alive<50)]
+rz.med.e2.g4.f = dy.land.e2.g4.f$time[which.max(dy.land.e2.g4.f$alive<50)]
+rz.med.e2.g5.f = dy.land.e2.g5.f$time[which.max(dy.land.e2.g5.f$alive<50)]
+
+#exp 3
+dy.land.e3.g1.f = dynamic.landscape(temps.e3.g1$Temperature,temps.e3.g1$Time_min,tol.land.females)
+dy.land.e3.g2.f = dynamic.landscape(temps.e3.g2$Temperature,temps.e3.g2$Time_min,tol.land.females)
+dy.land.e3.g3.f = dynamic.landscape(temps.e3.g3$Temperature,temps.e3.g3$Time_min,tol.land.females)
+dy.land.e3.g4.f = dynamic.landscape(temps.e3.g4$Temperature,temps.e3.g4$Time_min,tol.land.females)
+#median fail time
+rz.med.e3.g1.f = dy.land.e3.g1.f$time[which.max(dy.land.e3.g1.f$alive<50)]
+rz.med.e3.g2.f = dy.land.e3.g2.f$time[which.max(dy.land.e3.g2.f$alive<50)]
+rz.med.e3.g3.f = dy.land.e3.g3.f$time[which.max(dy.land.e3.g3.f$alive<50)]
+rz.med.e3.g4.f = dy.land.e3.g4.f$time[which.max(dy.land.e3.g4.f$alive<50)]
+
+#males
+tol.land.males=tolerance.landscape(males.tdt$Tref,males.tdt$tcoma)
+#exp 1
+dy.land.e1.g1.m = dynamic.landscape(temps.e1.g1$Temperature,temps.e1.g1$Time_min,tol.land.males)
+dy.land.e1.g2.m = dynamic.landscape(temps.e1.g2$Temperature,temps.e1.g2$Time_min,tol.land.males)
+dy.land.e1.g3.m = dynamic.landscape(temps.e1.g3$Temperature,temps.e1.g3$Time_min,tol.land.males)
+dy.land.e1.g4.m = dynamic.landscape(temps.e1.g4$Temperature,temps.e1.g4$Time_min,tol.land.males)
+#median fail time
+rz.med.e1.g1.m = dy.land.e1.g1.m$time[which.max(dy.land.e1.g1.m$alive<50)]
+rz.med.e1.g2.m = dy.land.e1.g2.m$time[which.max(dy.land.e1.g2.m$alive<50)]
+rz.med.e1.g3.m = dy.land.e1.g3.m$time[which.max(dy.land.e1.g3.m$alive<50)]
+rz.med.e1.g4.m = dy.land.e1.g4.m$time[which.max(dy.land.e1.g4.m$alive<50)]
+
+#exp 2
+dy.land.e2.g1.m = dynamic.landscape(temps.e2.g1$Temperature,temps.e2.g1$Time_min,tol.land.males)
+dy.land.e2.g2.m = dynamic.landscape(temps.e2.g2$Temperature,temps.e2.g2$Time_min,tol.land.males)
+dy.land.e2.g3.m = dynamic.landscape(temps.e2.g3$Temperature,temps.e2.g3$Time_min,tol.land.males)
+dy.land.e2.g4.m = dynamic.landscape(temps.e2.g4$Temperature,temps.e2.g4$Time_min,tol.land.males)
+dy.land.e2.g5.m = dynamic.landscape(temps.e2.g5$Temperature,temps.e2.g5$Time_min,tol.land.males)
+#median fail time
+rz.med.e2.g1.m = dy.land.e2.g1.m$time[which.max(dy.land.e2.g1.m$alive<50)]
+rz.med.e2.g2.m = dy.land.e2.g2.m$time[which.max(dy.land.e2.g2.m$alive<50)]
+rz.med.e2.g3.m = dy.land.e2.g3.m$time[which.max(dy.land.e2.g3.m$alive<50)]
+rz.med.e2.g4.m = dy.land.e2.g4.m$time[which.max(dy.land.e2.g4.m$alive<50)]
+rz.med.e2.g5.m = dy.land.e2.g5.m$time[which.max(dy.land.e2.g5.m$alive<50)]
+
+#exp 3
+dy.land.e3.g1.m = dynamic.landscape(temps.e3.g1$Temperature,temps.e3.g1$Time_min,tol.land.males)
+dy.land.e3.g2.m = dynamic.landscape(temps.e3.g2$Temperature,temps.e3.g2$Time_min,tol.land.males)
+dy.land.e3.g3.m = dynamic.landscape(temps.e3.g3$Temperature,temps.e3.g3$Time_min,tol.land.males)
+dy.land.e3.g4.m = dynamic.landscape(temps.e3.g4$Temperature,temps.e3.g4$Time_min,tol.land.males)
+#median fail time
+rz.med.e3.g1.m = dy.land.e3.g1.m$time[which.max(dy.land.e3.g1.m$alive<50)]
+rz.med.e3.g2.m = dy.land.e3.g2.m$time[which.max(dy.land.e3.g2.m$alive<50)]
+rz.med.e3.g3.m = dy.land.e3.g3.m$time[which.max(dy.land.e3.g3.m$alive<50)]
+rz.med.e3.g4.m = dy.land.e3.g4.m$time[which.max(dy.land.e3.g4.m$alive<50)]
+
+```
+
+
+```{r}
+#let's compare model outputs from the three models
+#females
+#exp 1
+exp1.f.summ = jorg.exp1.f$KD.dat %>% group_by(grp) %>% summarise(true.tKD.mean=mean(tcoma.adj),true.tKD.med=median(tcoma.adj),est.tKD=mean(est.tKD.adj))
+#linear shape
+exp1.f.summ$wb.med.tkd=c(wb.e1.g1.f$med.tdt,wb.e1.g2.f$med.tdt,wb.e1.g3.f$med.tdt,wb.e1.g4.f$med.tdt)
+exp1.f.summ$wb.cons.med.tkd=c(wb.cons.e1.g1.f$med.tdt,wb.cons.e1.g2.f$med.tdt,wb.cons.e1.g3.f$med.tdt,wb.cons.e1.g4.f$med.tdt)
+#linear shape
+exp1.f.summ$wb.mean.tkd=c(wb.e1.g1.f$expected.tdt,wb.e1.g2.f$expected.tdt,wb.e1.g3.f$expected.tdt,wb.e1.g4.f$expected.tdt)
+#constant shape
+exp1.f.summ$wb.cons.mean.tkd=c(wb.cons.e1.g1.f$expected.tdt,wb.cons.e1.g2.f$expected.tdt,wb.cons.e1.g3.f$expected.tdt,wb.cons.e1.g4.f$expected.tdt)
+exp1.f.summ$rz.med.tkd=c(rz.med.e1.g1.f,rz.med.e1.g2.f,rz.med.e1.g3.f,rz.med.e1.g4.f)
+exp1.f.summ$exp=1
+
+#exp 2
+exp2.f.summ = jorg.exp2.f$KD.dat %>% group_by(grp) %>% summarise(true.tKD.mean=mean(tcoma.adj),true.tKD.med=median(tcoma.adj),est.tKD=mean(est.tKD.adj))
+#linear shape
+exp2.f.summ$wb.med.tkd=c(wb.e2.g1.f$med.tdt,wb.e2.g2.f$med.tdt,wb.e2.g3.f$med.tdt,wb.e2.g4.f$med.tdt,wb.e2.g5.f$med.tdt)
+exp2.f.summ$wb.mean.tkd=c(wb.e2.g1.f$expected.tdt,wb.e2.g2.f$expected.tdt,wb.e2.g3.f$expected.tdt,wb.e2.g4.f$expected.tdt,wb.e2.g5.f$med.tdt)
+#constant shape
+exp2.f.summ$wb.cons.med.tkd=c(wb.cons.e2.g1.f$med.tdt,wb.cons.e2.g2.f$med.tdt,wb.cons.e2.g3.f$med.tdt,wb.cons.e2.g4.f$med.tdt,wb.cons.e2.g5.f$med.tdt)
+exp2.f.summ$wb.cons.mean.tkd=c(wb.cons.e2.g1.f$expected.tdt,wb.cons.e2.g2.f$expected.tdt,wb.cons.e2.g3.f$expected.tdt,wb.cons.e2.g4.f$expected.tdt,wb.cons.e2.g5.f$med.tdt)
+exp2.f.summ$rz.med.tkd=c(rz.med.e2.g1.f,rz.med.e2.g2.f,rz.med.e2.g3.f,rz.med.e2.g4.f,rz.med.e2.g5.f)
+exp2.f.summ$exp=2
+
+#exp 3
+exp3.f.summ = jorg.exp3.f$KD.dat %>% group_by(grp) %>% summarise(true.tKD.mean=mean(tcoma.adj),true.tKD.med=median(tcoma.adj),est.tKD=mean(est.tKD.adj))
+#linear shape
+exp3.f.summ$wb.med.tkd=c(wb.e3.g1.f$med.tdt,wb.e3.g2.f$med.tdt,wb.e3.g3.f$med.tdt,wb.e3.g4.f$med.tdt)
+exp3.f.summ$wb.mean.tkd=c(wb.e3.g1.f$expected.tdt,wb.e3.g2.f$expected.tdt,wb.e3.g3.f$expected.tdt,wb.e3.g4.f$expected.tdt)
+#constant shape
+exp3.f.summ$wb.cons.med.tkd=c(wb.cons.e3.g1.f$med.tdt,wb.cons.e3.g2.f$med.tdt,wb.cons.e3.g3.f$med.tdt,wb.cons.e3.g4.f$med.tdt)
+exp3.f.summ$wb.cons.mean.tkd=c(wb.cons.e3.g1.f$expected.tdt,wb.cons.e3.g2.f$expected.tdt,wb.cons.e3.g3.f$expected.tdt,wb.cons.e3.g4.f$expected.tdt)
+exp3.f.summ$rz.med.tkd=c(rz.med.e3.g1.f,rz.med.e3.g2.f,rz.med.e3.g3.f,rz.med.e3.g4.f)
+exp3.f.summ$exp=3
+
+three.mod.results.f = rbind(exp1.f.summ,exp2.f.summ,exp3.f.summ)
+three.mod.results.f$sex="f"
+#note that later I will calculate error based on individual points, not medians. That will be better, but this will give us an idea for now.
+three.mod.results.f$jorg.error=three.mod.results.f$est.tKD-three.mod.results.f$true.tKD.med
+three.mod.results.f$wb.error=three.mod.results.f$wb.med.tkd-three.mod.results.f$true.tKD.med
+three.mod.results.f$rz.error=three.mod.results.f$rz.med.tkd-three.mod.results.f$true.tKD.med
+sum(abs(three.mod.results.f$jorg.error))
+sum(abs(three.mod.results.f$wb.error))
+sum(abs(three.mod.results.f$rz.error))
+sum((three.mod.results.f$jorg.error)^2)
+sum((three.mod.results.f$wb.error)^2)
+sum((three.mod.results.f$rz.error)^2)
+```
+
+```{r}
+#males
+#exp 1
+exp1.m.summ = jorg.exp1.m$KD.dat %>% group_by(grp) %>% summarise(true.tKD.mean=mean(tcoma.adj),true.tKD.med=median(tcoma.adj),est.tKD=mean(est.tKD.adj))
+#linear shape
+exp1.m.summ$wb.med.tkd=c(wb.e1.g1.m$med.tdt,wb.e1.g2.m$med.tdt,wb.e1.g3.m$med.tdt,wb.e1.g4.m$med.tdt)
+exp1.m.summ$wb.mean.tkd=c(wb.e1.g1.m$expected.tdt,wb.e1.g2.m$expected.tdt,wb.e1.g3.m$expected.tdt,wb.e1.g4.m$expected.tdt)
+#constant shape
+exp1.m.summ$wb.cons.med.tkd=c(wb.cons.e1.g1.m$med.tdt,wb.cons.e1.g2.m$med.tdt,wb.cons.e1.g3.m$med.tdt,wb.cons.e1.g4.m$med.tdt)
+exp1.m.summ$wb.cons.mean.tkd=c(wb.cons.e1.g1.m$expected.tdt,wb.cons.e1.g2.m$expected.tdt,wb.cons.e1.g3.m$expected.tdt,wb.cons.e1.g4.m$expected.tdt)
+
+exp1.m.summ$rz.med.tkd=c(rz.med.e1.g1.m,rz.med.e1.g2.m,rz.med.e1.g3.m,rz.med.e1.g4.m)
+exp1.m.summ$exp=1
+
+#exp 2
+exp2.m.summ = jorg.exp2.m$KD.dat %>% group_by(grp) %>% summarise(true.tKD.mean=mean(tcoma.adj),true.tKD.med=median(tcoma.adj),est.tKD=mean(est.tKD.adj))
+#linear shape
+exp2.m.summ$wb.med.tkd=c(wb.e2.g1.m$med.tdt,wb.e2.g2.m$med.tdt,wb.e2.g3.m$med.tdt,wb.e2.g4.m$med.tdt,wb.e2.g5.m$med.tdt)
+exp2.m.summ$wb.mean.tkd=c(wb.e2.g1.m$expected.tdt,wb.e2.g2.m$expected.tdt,wb.e2.g3.m$expected.tdt,wb.e2.g4.m$expected.tdt,wb.e2.g5.m$med.tdt)
+#constant shape
+exp2.m.summ$wb.cons.med.tkd=c(wb.cons.e2.g1.m$med.tdt,wb.cons.e2.g2.m$med.tdt,wb.cons.e2.g3.m$med.tdt,wb.cons.e2.g4.m$med.tdt,wb.cons.e2.g5.m$med.tdt)
+exp2.m.summ$wb.cons.mean.tkd=c(wb.cons.e2.g1.m$expected.tdt,wb.cons.e2.g2.m$expected.tdt,wb.cons.e2.g3.m$expected.tdt,wb.cons.e2.g4.m$expected.tdt,wb.cons.e2.g5.m$med.tdt)
+exp2.m.summ$rz.med.tkd=c(rz.med.e2.g1.m,rz.med.e2.g2.m,rz.med.e2.g3.m,rz.med.e2.g4.m,rz.med.e2.g5.m)
+exp2.m.summ$exp=2
+
+#exp 3
+exp3.m.summ = jorg.exp3.m$KD.dat %>% group_by(grp) %>% summarise(true.tKD.mean=mean(tcoma.adj),true.tKD.med=median(tcoma.adj),est.tKD=mean(est.tKD.adj))
+#linear shape
+exp3.m.summ$wb.med.tkd=c(wb.e3.g1.m$med.tdt,wb.e3.g2.m$med.tdt,wb.e3.g3.m$med.tdt,wb.e3.g4.m$med.tdt)
+exp3.m.summ$wb.mean.tkd=c(wb.e3.g1.m$expected.tdt,wb.e3.g2.m$expected.tdt,wb.e3.g3.m$expected.tdt,wb.e3.g4.m$expected.tdt)
+#constant shape
+exp3.m.summ$wb.cons.med.tkd=c(wb.cons.e3.g1.m$med.tdt,wb.cons.e3.g2.m$med.tdt,wb.cons.e3.g3.m$med.tdt,wb.cons.e3.g4.m$med.tdt)
+exp3.m.summ$wb.cons.mean.tkd=c(wb.cons.e3.g1.m$expected.tdt,wb.cons.e3.g2.m$expected.tdt,wb.cons.e3.g3.m$expected.tdt,wb.cons.e3.g4.m$expected.tdt)
+
+exp3.m.summ$rz.med.tkd=c(rz.med.e3.g1.m,rz.med.e3.g2.m,rz.med.e3.g3.m,rz.med.e3.g4.m)
+exp3.m.summ$exp=3
+
+three.mod.results.m = rbind(exp1.m.summ,exp2.m.summ,exp3.m.summ)
+three.mod.results.m$sex="m"
+#note that later I will calculate error based on individual points, not medians. That will be better, but this will give us an idea for now.
+three.mod.results.m$jorg.error=three.mod.results.m$est.tKD-three.mod.results.m$true.tKD.med
+three.mod.results.m$wb.error=three.mod.results.m$wb.med.tkd-three.mod.results.m$true.tKD.med
+three.mod.results.m$rz.error=three.mod.results.m$rz.med.tkd-three.mod.results.m$true.tKD.med
+sum(abs(three.mod.results.m$jorg.error))
+sum(abs(three.mod.results.m$wb.error))
+sum(abs(three.mod.results.m$rz.error))
+sum((three.mod.results.m$jorg.error)^2)
+sum((three.mod.results.m$wb.error)^2)
+sum((three.mod.results.m$rz.error)^2)
+```
+
+```{r}
+#combine data
+three.mod.results = rbind(three.mod.results.f[,colnames(three.mod.results.f)%in%colnames(three.mod.results.m)],three.mod.results.m)
+```
+
+
+#make plot (Fig 4)
+```{r}
+fig4.males = ggplot(data = three.mod.results.m) +
+  geom_point(aes(y = log10(wb.med.tkd), x = log10(true.tKD.med), color = "Weibull"), size = 3) +
+  geom_point(aes(y = log10(est.tKD), x = log10(true.tKD.med), color = "Jorgensen"), size = 3) +
+  geom_point(aes(y = log10(rz.med.tkd), x = log10(true.tKD.med), color = "Rezende"), size = 3) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_smooth(aes(y = log10(wb.med.tkd), x = log10(true.tKD.med), color = "Weibull"), method = "lm", se = FALSE) +
+  geom_smooth(aes(y = log10(est.tKD), x = log10(true.tKD.med), color = "Jorgensen"), method = "lm", se = FALSE) +
+  geom_smooth(aes(y = log10(rz.med.tkd), x = log10(true.tKD.med), color = "Rezende"), method = "lm", se = FALSE) +
+  labs(
+    title = "B) Males",
+    x = expression("Observed Median t"[f] * " (minutes)"),
+    y = expression("Predicted Median t"[f] * " (minutes)"),
+    color = "Model"
+  ) +
+  scale_color_manual(values = c("#440154FF", "#22A884FF", "darkorange")) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line(),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    plot.title = element_text(size = 20, hjust = 0.5, face = "bold")
+  ) +
+  scale_x_continuous(
+    expand = c(0, 0),
+    limits = c(1.4, 2.45),
+    breaks = c(1.47, 1.78, 2.01, 2.38),
+    labels = c("30", "60", "120", "240")
+  ) +
+  scale_y_continuous(
+    expand = c(0, 0),
+    limits = c(1.4, 2.45),
+    breaks = c(1.47, 1.78, 2.01, 2.38),
+    labels = c("30", "60", "120", "240")
+  )
+  
+```
+
+```{r}
+fig4.females = ggplot(data = three.mod.results.f) +
+  geom_point(aes(y = log10(wb.med.tkd), x = log10(true.tKD.med), color = "Weibull"), size = 3) +
+  geom_point(aes(y = log10(est.tKD), x = log10(true.tKD.med), color = "Jorgensen"), size = 3) +
+  geom_point(aes(y = log10(rz.med.tkd), x = log10(true.tKD.med), color = "Rezende"), size = 3) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_smooth(aes(y = log10(wb.med.tkd), x = log10(true.tKD.med), color = "Weibull"), method = "lm", se = FALSE) +
+  geom_smooth(aes(y = log10(est.tKD), x = log10(true.tKD.med), color = "Jorgensen"), method = "lm", se = FALSE) +
+  geom_smooth(aes(y = log10(rz.med.tkd), x = log10(true.tKD.med), color = "Rezende"), method = "lm", se = FALSE) +
+  labs(
+    title = "A) Females",
+    x = expression("Observed Median t"[f] * " (minutes)"),
+    y = expression("Predicted Median t"[f] * " (minutes)"),
+    color = "Model"
+  ) +
+  scale_color_manual(values = c("#440154FF", "#22A884FF", "darkorange")) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line(),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    plot.title = element_text(size = 20, hjust = 0.5, face = "bold")
+  ) +
+  scale_x_continuous(
+    expand = c(0, 0),
+    limits = c(1.4, 2.45),
+    breaks = c(1.47, 1.78, 2.01, 2.38),
+    labels = c("30", "60", "120", "240")
+  ) +
+  scale_y_continuous(
+    expand = c(0, 0),
+    limits = c(1.4, 2.45),
+    breaks = c(1.47, 1.78, 2.01, 2.38),
+    labels = c("30", "60", "120", "240")
+  )
+  
+```
+
+```{r}
+# Remove individual axis titles and legends from each plot
+fig4.females2 <- fig4.females + 
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank(), legend.position = "none")
+
+fig4.males2 <- fig4.males + 
+  theme(axis.title.x = element_blank(), axis.title.y = element_blank(), legend.position = "none")
+
+# Create shared axis label plots as empty ggplots with just text
+x_lab_plot <- ggplot() + 
+  theme_void() +
+  annotate("text", x = 0.5, y = 0.5, label = expression("Observed Median t"[f] * " (minutes)"), size = 6)
+
+y_lab_plot <- ggplot() + 
+  theme_void() +
+  annotate("text", x = 0.5, y = 0.5, label = expression("Predicted Median t"[f] * " (minutes)"), size = 6, angle = 90)
+
+#Combine the two plots with patchwork
+main_plots <- wrap_plots(fig4.females2, fig4.males2, ncol = 2) + 
+  plot_layout(guides = "collect") & 
+  theme(legend.position = "right")  
+
+#Assemble everything into one patchwork layout with shared axis labels
+
+final_plot <- (
+  y_lab_plot + main_plots + plot_spacer() +    # 1st row: y label, plots, spacer
+  plot_spacer() + x_lab_plot + plot_spacer()   # 2nd row: spacer, x label, spacer
+) +
+  plot_layout(
+    ncol = 3,
+    nrow = 2,
+    widths = c(0.06, 0.88, 0.06),
+    heights = c(0.9, 0.1)
+  )
+
+print(final_plot)
+```
+
+
+#Make supplemental figure (S2) comparing Constant and Varying Shape Weibull Models
+```{r}
+ggplot(data = three.mod.results.f) +
+  geom_point(aes(y = log10(wb.med.tkd), x = log10(true.tKD.med), color = "Linear Shape Weibull"), size = 3) +
+  geom_abline(slope = 1, intercept = 0) +
+    geom_point(aes(y = log10(wb.cons.med.tkd), x = log10(true.tKD.med), color = "Constant Shape Weibull"), size = 3) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_smooth(aes(y = log10(wb.med.tkd), x = log10(true.tKD.med), color = "Linear Shape Weibull"), method = "lm", se = FALSE) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_smooth(aes(y = log10(wb.cons.med.tkd), x = log10(true.tKD.med), color = "Constant Shape Weibull"), method = "lm", se = FALSE) +
+  labs(
+    title = "Females",
+    x = expression("Observed Median t"[f] * " (minutes)"),
+    y = expression("Predicted Median t"[f] * " (minutes)"),
+    color = "Model"
+  ) +
+  scale_color_manual(values = c("gray", "darkorange")) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line(),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    plot.title = element_text(size = 20, hjust = 0.5, face = "bold")
+  ) +
+  scale_x_continuous(
+    expand = c(0, 0),
+    limits = c(1.4, 2.45),
+    breaks = c(1.47, 1.78, 2.01, 2.38),
+    labels = c("30", "60", "120", "240")
+  ) +
+  scale_y_continuous(
+    expand = c(0, 0),
+    limits = c(1.4, 2.45),
+    breaks = c(1.47, 1.78, 2.01, 2.38),
+    labels = c("30", "60", "120", "240")
+  )
+```
+
+```{r}
+ggplot(data = three.mod.results.m) +
+  geom_point(aes(y = log10(wb.med.tkd), x = log10(true.tKD.med), color = "Linear Shape Weibull"), size = 3) +
+  geom_abline(slope = 1, intercept = 0) +
+    geom_point(aes(y = log10(wb.cons.med.tkd), x = log10(true.tKD.med), color = "Constant Shape Weibull"), size = 3) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_smooth(aes(y = log10(wb.med.tkd), x = log10(true.tKD.med), color = "Linear Shape Weibull"), method = "lm", se = FALSE) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_smooth(aes(y = log10(wb.cons.med.tkd), x = log10(true.tKD.med), color = "Constant Shape Weibull"), method = "lm", se = FALSE) +
+  labs(
+    title = "Males",
+    x = expression("Observed Median t"[f] * " (minutes)"),
+    y = expression("Predicted Median t"[f] * " (minutes)"),
+    color = "Model"
+  ) +
+  scale_color_manual(values = c("gray", "darkorange")) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line(),
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    plot.title = element_text(size = 20, hjust = 0.5, face = "bold")
+  ) +
+  scale_x_continuous(
+    expand = c(0, 0),
+    limits = c(1.4, 2.45),
+    breaks = c(1.47, 1.78, 2.01, 2.38),
+    labels = c("30", "60", "120", "240")
+  ) +
+  scale_y_continuous(
+    expand = c(0, 0),
+    limits = c(1.4, 2.45),
+    breaks = c(1.47, 1.78, 2.01, 2.38),
+    labels = c("30", "60", "120", "240")
+  )
+```
+
