@@ -16,7 +16,7 @@ Contents:
           Nikolaj_TDT_raw.csv: Constant temperature knockdown data for D. melanogaster from the same population as Nikolaj_TDT_formatted.csv. Used to train fluctuationg temperature knockdown models.
           Nikolaj_TDT_formatted.csv: FLuctuating temperature knockdown data for D. melanogaster corresponding to the temperature conditions in Niko_temps_exp1-3. 
 
-Increasing_var_model_functions.Rmd: Contains code along with detailed instructions for the Log-Logistic (used in main-text) and Weibull (alternate distribution not-used in text) fluctuating temperature models. This file is intended for use by those that wish to use the models for their own data.
+Increasing_var_mod_functions.Rmd: Contains code along with detailed instructions for the Log-Logistic (used in main-text) and Weibull (alternate distribution not-used in text) fluctuating temperature models. This file is intended for use by those that wish to use the models for their own data.
 
 
 
